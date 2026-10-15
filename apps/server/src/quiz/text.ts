@@ -50,17 +50,17 @@ export function levenshteinRatio(a: string, b: string): number {
   const m = s.length;
   const n = t.length;
   if (!m || !n) return 0;
-  const prev = new Array(n + 1).fill(0).map((_, i) => i);
+  const prev: number[] = Array.from({ length: n + 1 }, (_, i) => i);
   for (let i = 1; i <= m; i++) {
-    let diag = prev[0];
+    let diag = prev[0]!;
     prev[0] = i;
     for (let j = 1; j <= n; j++) {
-      const tmp = prev[j];
-      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + (s[i - 1] === t[j - 1] ? 0 : 1));
+      const tmp = prev[j]!;
+      prev[j] = Math.min(prev[j]! + 1, prev[j - 1]! + 1, diag + (s[i - 1] === t[j - 1] ? 0 : 1));
       diag = tmp;
     }
   }
-  return 1 - prev[n] / Math.max(m, n);
+  return 1 - prev[n]! / Math.max(m, n);
 }
 
 export function numbersIn(s: string): string[] {

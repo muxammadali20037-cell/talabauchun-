@@ -364,6 +364,7 @@ export const en: Messages = {
     errorGeneric: "Sorry, something went wrong. Your work is saved. Please try again shortly.",
     askHint: "Type your question. The answer relies on your selected sources; if they don't contain it, I'll say so.",
     progress: "<b>Results</b>\n\nCompleted practices: {attempts}\nAverage score: {avg}%\nMistakes to review: {mistakes}",
+    paymentsDisabled: "Payments are not enabled yet. You can keep using the free allowance.",
     paysupport: "Describe your payment question: include the payment date and what was purchased.",
   },
 };

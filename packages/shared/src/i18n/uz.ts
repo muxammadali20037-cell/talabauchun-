@@ -367,6 +367,7 @@ export const uz = {
     errorGeneric: "Kechirasiz, xatolik yuz berdi. Ishingiz saqlangan. Birozdan keyin qayta urinib koʻring.",
     askHint: "Savolingizni yozing. Javob tanlangan manbalaringizga tayanadi; manbada topilmasa, buni ochiq aytaman.",
     progress: "<b>Natijalar</b>\n\nTugatilgan mashqlar: {attempts}\nOʻrtacha natija: {avg}%\nTakrorlash uchun xatolar: {mistakes}",
+    paymentsDisabled: "Toʻlovlar hozircha yoqilmagan. Bepul limit bilan foydalanishda davom etishingiz mumkin.",
     paysupport: "Toʻlov boʻyicha savolingizni yozing: toʻlov sanasi va nima xarid qilinganini koʻrsating.",
   },
 } as const;

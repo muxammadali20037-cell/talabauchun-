@@ -28,7 +28,7 @@ async function pickVersion(deps: Deps, user: UserRow, quizId: string) {
 export async function startAttempt(deps: Deps, user: UserRow, quizId: string, mode: AttemptMode, opts: { questionIds?: string[] } = {}) {
   const v = await pickVersion(deps, user, quizId);
   const statuses = v.isDraft ? ["draft", "approved"] : ["published"];
-  let qs = await deps.sql<{ id: string }[]>`
+  let qs: { id: string }[] = await deps.sql<{ id: string }[]>`
     select id from questions where quiz_version_id = ${v.versionId} and status in ${deps.sql(statuses)}
       and exists (select 1 from options o where o.question_id = questions.id) order by position`;
   if (opts.questionIds) {
