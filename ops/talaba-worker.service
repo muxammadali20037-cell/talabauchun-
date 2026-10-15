@@ -1,0 +1,27 @@
+# /etc/systemd/system/talaba-worker.service — generation jobs (OCR, quiz, slides, exports), Telegram outbox, group quiz ticker
+# More workers: run this unit on more hosts (or copy it as talaba-worker2.service); jobs are claimed with leases, so copies never double-process.
+[Unit]
+Description=TALABA AI worker
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=talaba
+WorkingDirectory=/opt/talaba/apps/server
+EnvironmentFile=/etc/talaba/talaba.env
+Environment=MIGRATE_ON_START=false
+ExecStart=/usr/bin/node dist/worker-main.js
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+# lets a running job finish its current step; an interrupted job resumes from its checkpoint on another worker
+TimeoutStopSec=30
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/talaba
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

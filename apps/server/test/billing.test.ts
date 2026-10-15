@@ -144,6 +144,7 @@ describe("Telegram Stars payments (acceptance 16)", () => {
     const r = await app.inject({ method: "POST", url: `/api/admin/payments/${p!.id}/refund`, headers: auth(admin) });
     expect(r.json()).toEqual({ refunded: true });
     expect(fake.last("refundStarPayment")!.params).toEqual({ user_id: 800101, telegram_payment_charge_id: "stxCharge-1" });
+    expect((await deps.sql<{ t: string }[]>`select payer_telegram_id::text as t from payments where id = ${p!.id}`)[0]!.t).toBe("800101");
     expect(await getBalance(deps.sql, uid)).toBe(before - 400);
     expect((await deps.sql<{ status: string }[]>`select status from entitlements where user_id = ${uid}`)[0]!.status).toBe("revoked");
     // Telegram's refunded_payment service message for the same charge, and a second admin click: no further change

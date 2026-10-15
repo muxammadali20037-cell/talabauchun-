@@ -1,3 +1,4 @@
+import { shuffle } from "../lib/crypto";
 import { CreateQuizRequest, QuizSettings, translate, type Lang } from "@talaba/shared";
 import type { Deps } from "../deps";
 import { AiError } from "../ai/client";
@@ -109,6 +110,9 @@ export function quizGenerateHandler(deps: Deps) {
         candidates = await mistakesCandidates(deps, userId, settings.count);
         if (!candidates.length) throw new JobError("no_mistakes");
       }
+      // Generated options are stored in random order (the correct one is not always first, even with
+      // per-player shuffling switched off). Options the user typed keep the user's order.
+      candidates = candidates.map((c) => (c.notes?.userOptions ? c : { ...c, options: shuffle(c.options) }));
       await ctx.saveCheckpoint({ candidates, note });
     } else {
       note = (ctx.checkpoint.note as string | null) ?? null;
@@ -163,6 +167,7 @@ function userOptionsCandidate(l: { p: { question: string; options: { text: strin
     text: l.p.question, type: correctCount > 1 ? "multiple" : "single", options: l.p.options!, explanation: l.p.explanation,
     difficulty: "medium", cognitiveLevel: "recall", topic: null, language: lang,
     evidence: l.ev?.evidence ?? null, evidenceStatus: l.ev?.evidence ? "verified" : "not_found", generator: "user",
+    notes: { userOptions: true },
   };
 }
 

@@ -210,7 +210,7 @@ async function finishRun(deps: Deps, run: RunRow) {
 }
 
 async function notifyHostNoPermission(deps: Deps, run: RunRow) {
-  const [host] = await deps.sql<{ telegram_id: string; language: Lang }[]>`select telegram_id::text, language from users where id = ${run.host_id}`;
-  if (!host) return;
+  const [host] = await deps.sql<{ telegram_id: string | null; language: Lang }[]>`select telegram_id::text, language from users where id = ${run.host_id}`;
+  if (!host?.telegram_id) return; // account deleted meanwhile
   await enqueueMessage(deps.sql, { chatId: host.telegram_id, userId: run.host_id, method: "sendMessage", payload: { text: translate(host.language, "bot.groupNoPermission") }, dedupeKey: `group-noperm:${run.id}` });
 }

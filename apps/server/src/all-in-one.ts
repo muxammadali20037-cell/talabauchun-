@@ -6,6 +6,7 @@ import { RoomHub } from "./rooms/hub";
 import { JobWorker } from "./jobs/queue";
 import { jobHandlers } from "./jobs/handlers";
 import { slideJobHandlers } from "./slides/jobs";
+import { cleanupExpiredExports } from "./account/data";
 import { OutboxSender } from "./telegram/outbox";
 import { tickGroupRuns } from "./group/native-quiz";
 import { runPolling } from "./telegram/polling";
@@ -27,6 +28,8 @@ await worker.start();
 const outbox = deps.tg ? new OutboxSender(deps.sql, deps.tg, (o, m) => log.warn(o, m)) : null;
 outbox?.start();
 const groupTimer = setInterval(() => void tickGroupRuns(deps).catch(() => {}), 1000);
+// data-export archives are offered for 7 days, then deleted
+const cleanupTimer = setInterval(() => void cleanupExpiredExports(deps).catch(() => {}), 3600_000);
 await app.listen({ port: cfg.PORT, host: cfg.HOST });
 log.info({ port: cfg.PORT, integrations: integrationStatus(cfg) }, "TALABA AI (all-in-one) started");
 const polling = new AbortController();
@@ -35,6 +38,7 @@ if (process.env.TELEGRAM_MODE === "polling") void runPolling(deps, polling.signa
 const shutdown = async () => {
   polling.abort();
   clearInterval(groupTimer);
+  clearInterval(cleanupTimer);
   outbox?.stop();
   await app.close();
   await hub.stop();

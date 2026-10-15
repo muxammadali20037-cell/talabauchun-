@@ -6,6 +6,7 @@ import { jobHandlers } from "./jobs/handlers";
 import { OutboxSender } from "./telegram/outbox";
 import { tickGroupRuns } from "./group/native-quiz";
 import { slideJobHandlers } from "./slides/jobs";
+import { cleanupExpiredExports } from "./account/data";
 
 /**
  * Background worker: generation jobs (leases + checkpoints survive restarts),
@@ -20,10 +21,13 @@ await worker.start();
 const outbox = deps.tg ? new OutboxSender(deps.sql, deps.tg, (o, m) => log.warn(o, m)) : null;
 outbox?.start();
 const groupTimer = setInterval(() => void tickGroupRuns(deps).catch((e) => log.error({ err: String(e) }, "group tick failed")), 1000);
+// data-export archives are offered for 7 days, then deleted
+const cleanupTimer = setInterval(() => void cleanupExpiredExports(deps).catch((e) => log.error({ err: String(e) }, "export cleanup failed")), 3600_000);
 log.info({ worker: worker.workerId, concurrency: cfg.WORKER_CONCURRENCY }, "worker started");
 
 const shutdown = async () => {
   clearInterval(groupTimer);
+  clearInterval(cleanupTimer);
   outbox?.stop();
   await worker.stop();
   await deps.sql.end({ timeout: 5 });

@@ -14,7 +14,7 @@ import { buildApp } from "../src/http/app";
 import { signInitData } from "../src/auth/init-data";
 import { createDb } from "../src/db/index";
 import { LocalStorage } from "../src/storage/local";
-import { accountJobHandlers, reapplyDeletions } from "../src/account/data";
+import { accountJobHandlers, cleanupExpiredExports, reapplyDeletions } from "../src/account/data";
 import { createDocumentFromFile } from "../src/ingest/documents";
 import { createQuiz } from "../src/quiz/service";
 import { retrieve } from "../src/search/retrieve";
@@ -107,6 +107,13 @@ describe("data export (acceptance 19)", () => {
     // the link is signed for this file only and expires
     const forged = list[0].download.url.replace(/sig=[0-9a-f]+/, "sig=" + "0".repeat(64));
     expect((await app.inject({ method: "GET", url: forged })).statusCode).toBe(403);
+    // after 7 days the archive is deleted and no longer offered
+    const [req] = await deps.sql<{ id: string; key: string }[]>`select id, result->>'storageKey' as key from data_requests where user_id = ${owner.userId} and kind = 'export'`;
+    expect(await cleanupExpiredExports(deps)).toBe(0);
+    await deps.sql`update data_requests set finished_at = now() - interval '8 days' where id = ${req!.id}`;
+    expect(await cleanupExpiredExports(deps)).toBe(1);
+    expect(await deps.storage.exists(req!.key)).toBe(false);
+    expect((await app.inject({ method: "GET", url: "/api/me/data", headers: auth(owner.token) })).json().items[0].download).toBeNull();
     // another user sees none of it
     const other = await login(app, 620009, "Begona");
     expect((await app.inject({ method: "GET", url: "/api/me/data", headers: auth(other.token) })).json().items).toEqual([]);

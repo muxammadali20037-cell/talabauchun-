@@ -86,6 +86,7 @@ export async function handleSuccessfulPayment(
       return { credited: false, reason: "mismatch", paymentId: p.id };
     }
     await tx`update payments set status = 'paid', paid_at = now(), telegram_payment_charge_id = ${sp.telegram_payment_charge_id},
+      payer_telegram_id = (select telegram_id from users where id = ${p.user_id}),
       provider_payment_charge_id = ${sp.provider_payment_charge_id ?? null}, raw = ${tx.json(sp as never)} where id = ${p.id}`;
     await tx`insert into credit_ledger (user_id, entry_type, amount, payment_id, reason, idempotency_key)
       values (${p.user_id}, 'purchase', ${p.credits}, ${p.id}, ${"plan " + p.plan_code}, ${"purchase:" + sp.telegram_payment_charge_id})
@@ -101,11 +102,12 @@ export async function handleSuccessfulPayment(
 /** Admin refund: calls refundStarPayment first; ledger/entitlements change only after Telegram confirms. */
 export async function refundPayment(deps: Deps, adminId: string, paymentId: string) {
   const [p] = await deps.sql<{ id: string; status: string; credits: number; user_id: string; telegram_payment_charge_id: string | null; user_tg: string }[]>`
-    select p.id, p.status, p.credits, p.user_id, p.telegram_payment_charge_id, u.telegram_id::text as user_tg from payments p join users u on u.id = p.user_id where p.id = ${paymentId}`;
+    select p.id, p.status, p.credits, p.user_id, p.telegram_payment_charge_id, coalesce(p.payer_telegram_id, u.telegram_id)::text as user_tg from payments p join users u on u.id = p.user_id where p.id = ${paymentId}`;
   if (!p) throw new AppError("not_found", 404);
   if (p.status === "refunded") return { refunded: false, reason: "already_refunded" };
   if (p.status !== "paid" || !p.telegram_payment_charge_id) throw new AppError("not_refundable", 409);
   if (!deps.tg) throw new AppError("telegram_not_configured", 503);
+  if (!p.user_tg) throw new AppError("payer_unknown", 409);
   await deps.tg.call("refundStarPayment", { user_id: Number(p.user_tg), telegram_payment_charge_id: p.telegram_payment_charge_id });
   await applyRefund(deps, p.telegram_payment_charge_id, adminId);
   return { refunded: true };

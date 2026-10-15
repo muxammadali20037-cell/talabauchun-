@@ -35,7 +35,7 @@ export async function listDataRequests(deps: Deps, user: UserRow) {
     select id, kind, status, created_at, finished_at, result, error from data_requests where user_id = ${user.id} order by created_at desc limit 10`;
   return rows.map((r) => {
     let download: { url: string; filename: string; expiresAt: string } | null = null;
-    // export archives are kept 7 days, then removed by the cleanup in the job worker
+    // export archives are kept 7 days, then removed by cleanupExpiredExports (worker, hourly)
     if (r.kind === "export" && r.status === "done" && r.result?.storageKey && r.finished_at && Date.now() - r.finished_at.getTime() < 7 * 86400_000) {
       const filename = r.result.filename ?? "talaba-ai-export.zip";
       const { exp, sig } = deps.storage.sign(r.result.storageKey, filename, 600);
@@ -43,6 +43,18 @@ export async function listDataRequests(deps: Deps, user: UserRow) {
     }
     return { id: r.id, kind: r.kind, status: r.status, createdAt: r.created_at, finishedAt: r.finished_at, bytes: r.result?.bytes ?? null, error: r.error, download };
   });
+}
+
+/** Deletes data-export archives older than 7 days (files and the stored key). Runs hourly in the worker. */
+export async function cleanupExpiredExports(deps: Deps, now = new Date()): Promise<number> {
+  const old = await deps.sql<{ id: string; key: string }[]>`
+    select id, result->>'storageKey' as key from data_requests
+    where kind = 'export' and status = 'done' and result ? 'storageKey' and finished_at < ${new Date(now.getTime() - 7 * 86400_000)}`;
+  for (const r of old) {
+    await deps.storage.delete(r.key).catch(() => {});
+    await deps.sql`update data_requests set result = result - 'storageKey' where id = ${r.id}`;
+  }
+  return old.length;
 }
 
 // ───────────── export ─────────────

@@ -1,0 +1,16 @@
+# Caddy obtains and renews the HTTPS certificate automatically (Telegram requires HTTPS for the webhook and the Mini App).
+talaba.example.uz {
+	encode zstd gzip
+	# room WebSockets, API, webhook, Mini App (/app/) and signed file downloads all go to the API process
+	reverse_proxy 127.0.0.1:8080 {
+		header_up X-Forwarded-Proto {scheme}
+	}
+	# uploads up to MAX_UPLOAD_MB (+ headroom)
+	request_body {
+		max_size 60MB
+	}
+	log {
+		output file /var/log/caddy/talaba.log
+		format json
+	}
+}

@@ -1,0 +1,9 @@
+# /etc/systemd/system/talaba-backup.service (+ talaba-backup.timer) — nightly backup with 14-day rotation
+[Unit]
+Description=TALABA AI backup
+
+[Service]
+Type=oneshot
+User=talaba
+EnvironmentFile=/etc/talaba/talaba.env
+ExecStart=/opt/talaba/ops/backup.sh /var/backups/talaba

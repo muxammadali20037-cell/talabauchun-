@@ -140,6 +140,12 @@ describe("Quiz Studio (no AI configured: extractive mode)", () => {
     expect(b.quizId).toBe(a.quizId);
     expect(b.duplicate).toBe(true);
     expect(before - (await getBalance(deps.sql, user.id))).toBe(a.credits);
+    // generated options are stored in random order: the key is not always option A
+    await testWorker(deps).drain();
+    const ed = await getQuizForEditor(deps, user, a.quizId);
+    const keyPositions = (ed.questions as { options: { correct?: boolean }[] }[]).map((q) => q.options.findIndex((o) => o.correct));
+    expect(keyPositions.length).toBeGreaterThanOrEqual(8);
+    expect(new Set(keyPositions).size).toBeGreaterThan(1);
   });
 
   it("forbids other accounts from reading editor data or using foreign documents", async () => {

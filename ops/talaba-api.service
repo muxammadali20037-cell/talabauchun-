@@ -1,0 +1,25 @@
+# /etc/systemd/system/talaba-api.service — HTTP API, Telegram webhook, Mini App static files, room WebSockets
+[Unit]
+Description=TALABA AI API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=talaba
+WorkingDirectory=/opt/talaba/apps/server
+EnvironmentFile=/etc/talaba/talaba.env
+ExecStart=/usr/bin/node dist/main.js
+Restart=always
+RestartSec=3
+# graceful shutdown closes WebSockets and the DB pool
+KillSignal=SIGTERM
+TimeoutStopSec=20
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/talaba
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

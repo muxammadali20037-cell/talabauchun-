@@ -1,0 +1,125 @@
+{
+  "mode": "extractive",
+  "models": null,
+  "date": "2026-10-15T20:32:47.071Z",
+  "materials": {
+    "textbook/from_source": {
+      "ingest": {
+        "status": "ready",
+        "pages_ok": 5,
+        "pages_failed": 0,
+        "pages_low_conf": 0,
+        "page_count": 5
+      },
+      "requested": 15,
+      "produced": 15,
+      "evidenceVerified": 15,
+      "needsReview": 15,
+      "readyToApprove": 0,
+      "failsByRule": {},
+      "warnsByRule": {
+        "review_required": 15
+      },
+      "keyPositions": {
+        "A": 2,
+        "B": 5,
+        "D": 6,
+        "C": 2
+      },
+      "note": {
+        "mode": "extractive",
+        "note": null,
+        "produced": 15,
+        "requested": 15
+      }
+    },
+    "textbook/from_questions": {
+      "ingest": {
+        "status": "ready",
+        "pages_ok": 5,
+        "pages_failed": 0,
+        "pages_low_conf": 0,
+        "page_count": 5
+      },
+      "requested": 6,
+      "produced": 6,
+      "evidenceVerified": 0,
+      "needsReview": 6,
+      "readyToApprove": 0,
+      "failsByRule": {
+        "clarity": 6,
+        "source_support": 6,
+        "single_correct": 6
+      },
+      "warnsByRule": {
+        "explanation_locator": 6,
+        "review_required": 6
+      },
+      "keyPositions": {},
+      "note": {
+        "mode": "extractive",
+        "note": null,
+        "produced": 6,
+        "requested": 6
+      }
+    },
+    "scan/from_source": {
+      "ingest": {
+        "status": "ready",
+        "pages_ok": 4,
+        "pages_failed": 0,
+        "pages_low_conf": 0,
+        "page_count": 6
+      },
+      "requested": 10,
+      "produced": 10,
+      "evidenceVerified": 10,
+      "needsReview": 10,
+      "readyToApprove": 0,
+      "failsByRule": {},
+      "warnsByRule": {
+        "review_required": 10
+      },
+      "keyPositions": {
+        "A": 4,
+        "D": 3,
+        "C": 3
+      },
+      "note": {
+        "mode": "extractive",
+        "note": null,
+        "produced": 10,
+        "requested": 10
+      }
+    },
+    "statistics/from_table": {
+      "ingest": {
+        "status": "ready",
+        "pages_ok": 1,
+        "pages_failed": 0,
+        "pages_low_conf": 0,
+        "page_count": 1
+      },
+      "requested": 4,
+      "produced": 4,
+      "evidenceVerified": 4,
+      "needsReview": 4,
+      "readyToApprove": 0,
+      "failsByRule": {},
+      "warnsByRule": {
+        "review_required": 4
+      },
+      "keyPositions": {
+        "A": 2,
+        "D": 1,
+        "C": 1
+      },
+      "note": {
+        "mode": "table",
+        "produced": 4,
+        "requested": 4,
+        "exampleData": true
+      }
+    }
+  }
+}
