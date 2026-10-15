@@ -39,6 +39,7 @@ export default defineConfig({
       MINIAPP_DIST_DIR: "../apps/miniapp/dist",
       LOG_LEVEL: process.env.E2E_LOG ?? "silent",
       WORKER_CONCURRENCY: "2",
+      ADMIN_TELEGRAM_IDS: "4500001",
     },
   },
 });

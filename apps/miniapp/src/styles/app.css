@@ -291,3 +291,15 @@ body.kb-open .bottom-nav, body.kb-open .action-bar { display: none; }
 .bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar { height: 14px; background: var(--c-surface-2); border-radius: 7px; overflow: hidden; }
 .bar > span { display: block; height: 100%; background: var(--c-primary); border-radius: 7px; }
+
+/* key/value list (pricing) */
+.cost-list { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 0; }
+.cost-list dt { color: var(--c-text-2); }
+.cost-list dd { margin: 0; font-weight: 600; text-align: right; }
+
+/* admin stats */
+.stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 720px) { .stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.stat { display: flex; flex-direction: column; gap: 4px; padding: 12px; }
+.stat strong { font-size: 20px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }

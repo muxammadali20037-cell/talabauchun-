@@ -26,6 +26,7 @@ export type TgWebApp = {
   openLink(url: string, opts?: { try_instant_view?: boolean }): void;
   downloadFile?(params: { url: string; file_name: string }, cb?: (ok: boolean) => void): void;
   showConfirm?(message: string, cb: (ok: boolean) => void): void;
+  openInvoice?(url: string, cb?: (status: "paid" | "cancelled" | "failed" | "pending") => void): void;
   BackButton: { show(): void; hide(): void; onClick(cb: () => void): void; offClick(cb: () => void): void; isVisible: boolean };
   MainButton: { hide(): void };
   HapticFeedback?: { impactOccurred(s: "light" | "medium" | "heavy" | "rigid" | "soft"): void; notificationOccurred(t: "error" | "success" | "warning"): void; selectionChanged(): void };
@@ -128,4 +129,14 @@ export function downloadFile(url: string, fileName: string) {
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+
+/**
+ * Opens a Telegram Stars invoice. The returned status only drives the UI:
+ * credits are added by the server after Telegram's successful_payment update.
+ */
+export function openInvoice(url: string): Promise<"paid" | "cancelled" | "failed" | "pending" | "unsupported"> {
+  const w = tg();
+  if (!w?.openInvoice || !w.isVersionAtLeast("6.1")) return Promise.resolve("unsupported");
+  return new Promise((resolve) => w.openInvoice!(url, (status) => resolve(status)));
 }

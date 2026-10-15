@@ -33,6 +33,10 @@ const Matching = lazy(() => import("./screens/study/Matching").then((m) => ({ de
 const WorkspaceNew = lazy(() => import("./screens/workspaces/Workspaces").then((m) => ({ default: m.WorkspaceNew })));
 const WorkspaceJoin = lazy(() => import("./screens/workspaces/Workspaces").then((m) => ({ default: m.WorkspaceJoin })));
 const WorkspaceDetail = lazy(() => import("./screens/workspaces/Workspaces").then((m) => ({ default: m.WorkspaceDetail })));
+const Billing = lazy(() => import("./screens/account/Billing").then((m) => ({ default: m.Billing })));
+const MyData = lazy(() => import("./screens/account/MyData").then((m) => ({ default: m.MyData })));
+const Support = lazy(() => import("./screens/account/Support").then((m) => ({ default: m.Support })));
+const AdminRoutes = lazy(() => import("./screens/admin/Admin").then((m) => ({ default: m.AdminRoutes })));
 const DeckRoutes = lazy(() => import("./screens/decks/DeckRoutes").then((m) => ({ default: m.DeckRoutes })));
 
 export function App() {
@@ -93,6 +97,10 @@ export function App() {
         <Route path="/library/:id/stats" element={<Stats />} />
         <Route path="/games/matching" element={<Matching />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/profile/data" element={<MyData />} />
+        <Route path="/billing" element={<Billing />} />
+        <Route path="/support" element={<Support />} />
+        <Route path="/admin/*" element={<AdminRoutes />} />
         <Route path="/terms" element={<InfoPage kind="terms" />} />
         <Route path="/privacy" element={<InfoPage kind="privacy" />} />
         <Route path="/help" element={<InfoPage kind="help" />} />

@@ -1,0 +1,7 @@
+   0.1s  signed in with initData
+   0.7s  document parsed: ready, 5 pages
+   1.2s  quiz generated: 5 questions
+   1.8s  deck generated: 12 slides
+   4.7s  PPTX exported: 48534 bytes, checks ok=true, slides=12
+   7.5s  PDF exported: 77651 bytes, checks ok=true, slides=12
+   7.5s  smoke test passed

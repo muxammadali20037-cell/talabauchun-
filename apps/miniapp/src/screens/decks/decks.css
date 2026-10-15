@@ -1,0 +1,95 @@
+/* Presentation Studio. Uses only the design tokens from styles/app.css. Slide
+   previews keep the deck's own colours in both light and dark app themes. */
+
+/* ── list ── */
+.deck-swatch { position: relative; width: 44px; height: 26px; border-radius: 6px; flex: none; overflow: hidden; border: 1px solid var(--c-border); }
+.deck-swatch > span { position: absolute; right: 5px; bottom: 5px; width: 10px; height: 10px; border-radius: 50%; }
+.deck-list-title { display: block; font-weight: 600; }
+.deck-list-title + .meta { display: block; }
+
+/* ── create form ── */
+.deck-check { width: 20px; height: 20px; flex: none; accent-color: var(--c-primary); }
+.deck-themes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); max-width: 560px; }
+.deck-theme { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 6px; border-radius: var(--r-m); border: 2px solid var(--c-border); background: var(--c-surface); color: var(--c-text); cursor: pointer; text-align: left; min-height: var(--tap); }
+.deck-theme[aria-checked="true"] { border-color: var(--c-primary); background: var(--c-primary-soft); }
+.deck-theme:disabled { opacity: 0.6; cursor: not-allowed; }
+.deck-theme-art { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; border: 1px solid var(--c-border); }
+.deck-theme-art > span:first-child { position: absolute; left: 0; top: 0; bottom: 0; width: 38%; }
+.deck-theme-art > span:last-child { position: absolute; right: 12%; top: 22%; width: 22%; aspect-ratio: 1; border-radius: 50%; }
+.deck-theme-name { font-size: var(--fs-caption); font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+
+/* ── slide preview (elements positioned in cqw by SlidePreview.tsx) ── */
+.deck-slide { background: #ffffff; }
+.deck-slide .deck-text { overflow: visible; display: flex; flex-direction: column; white-space: normal; overflow-wrap: break-word; }
+.deck-slide .deck-text p { margin: 0; position: relative; }
+.deck-slide .deck-dot { position: absolute; top: 0; }
+.deck-slide .deck-table { border-collapse: collapse; table-layout: fixed; line-height: 1.17; }
+.deck-slide .deck-table th { font-weight: 700; text-align: left; }
+.deck-slide .deck-table td, .deck-slide .deck-table th { vertical-align: middle; overflow-wrap: anywhere; }
+
+/* ── deck page ── */
+.deck-h2 { font-size: var(--fs-h3); }
+.deck-warnings { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 4px; }
+.deck-slides { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-4); }
+@media (min-width: 900px) { .deck-slides { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.deck-card { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+.deck-card-head { align-items: center; }
+.deck-card-title { font-size: var(--fs-small); font-weight: 600; }
+.deck-pages { display: flex; flex-direction: column; gap: var(--s-2); }
+.deck-cont { display: flex; flex-direction: column; gap: 4px; padding-left: var(--s-4); }
+.deck-notes summary { cursor: pointer; font-size: var(--fs-small); font-weight: 600; color: var(--c-text-2); min-height: 32px; display: flex; align-items: center; }
+.deck-notes-text { white-space: pre-line; color: var(--c-text-2); max-height: 240px; overflow: auto; }
+.deck-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; justify-content: space-between; }
+.deck-actions-main, .deck-actions-icons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.deck-actions .icon-btn { width: 40px; height: 40px; font-size: 16px; }
+.deck-cost { gap: 2px; }
+.deck-skeleton-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
+.deck-skeleton-slide { aspect-ratio: 16 / 9; border-radius: var(--r-s); }
+
+/* ── outline (plan) ── */
+.deck-outline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-3); }
+.deck-idea { min-height: 64px; font-size: var(--fs-small); }
+
+/* ── exports ── */
+.deck-export { display: flex; flex-direction: column; gap: var(--s-2); padding-top: var(--s-3); border-top: 1px solid var(--c-border); }
+.deck-format { font-size: var(--fs-small); letter-spacing: 0.04em; min-width: 44px; }
+.deck-checks summary { cursor: pointer; font-size: var(--fs-small); color: var(--c-text-2); min-height: 32px; display: flex; align-items: center; }
+.deck-check-list { list-style: none; margin: var(--s-2) 0 0; padding: 0; display: grid; gap: 4px; font-size: var(--fs-small); }
+@media (min-width: 720px) { .deck-check-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.deck-thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 120px), 1fr)); gap: var(--s-2); }
+.deck-thumbs img, .deck-thumb-missing { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; border: 1px solid var(--c-border); background: var(--c-surface-2); }
+
+/* ── slide editor ── */
+.deck-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: var(--s-3); }
+.deck-fieldset:disabled { opacity: 0.6; }
+.deck-conflict { flex-direction: column; }
+.deck-bullet-row { display: flex; gap: var(--s-2); align-items: flex-start; }
+.deck-bullet-row.is-sub { padding-left: var(--s-5); }
+.deck-bullet-input { min-height: 64px; font-size: 15px; field-sizing: content; max-height: 260px; }
+.deck-bullet-tools { display: flex; flex-direction: column; gap: 4px; }
+.deck-bullet-tools .icon-btn { width: 40px; height: 40px; }
+.deck-bullet-tools .icon-btn[aria-pressed="true"] { background: var(--c-primary-soft); border-color: var(--c-primary); color: var(--c-primary); }
+.deck-add { align-self: flex-start; }
+.deck-columns { display: grid; gap: var(--s-3); }
+@media (min-width: 720px) { .deck-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.deck-table-edit { display: grid; gap: 6px; overflow-x: auto; max-width: 100%; align-items: center; }
+.deck-cell { min-height: 40px; padding: 6px 8px; font-size: var(--fs-small); min-width: 0; }
+.deck-cell.head { font-weight: 600; }
+.deck-chart-edit td, .deck-chart-edit th { white-space: normal; min-width: 96px; }
+.deck-sources ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+
+/* ── history ── */
+.deck-history { margin: 0; padding: 0; list-style: none; }
+.deck-history .meta { display: block; }
+
+/* ── full-screen viewer (portrait phones: the slide is turned sideways to use the full height) ── */
+.deck-viewer { position: fixed; inset: 0; z-index: 70; background: #020617; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-3); padding: calc(var(--safe-top) + 8px) 12px calc(var(--safe-bottom) + 8px); overflow: hidden; outline: none; }
+.deck-viewer-frame { --w: min(calc(100vw - 24px), calc((100dvh - 120px) * 16 / 9)); position: relative; flex: none; width: var(--w); height: calc(var(--w) * 9 / 16); }
+.deck-viewer-frame.is-rotated { --w: min(calc(100dvh - 120px), calc((100vw - 24px) * 16 / 9)); width: calc(var(--w) * 9 / 16); height: var(--w); }
+.deck-viewer-stage { width: var(--w); }
+.deck-viewer-frame.is-rotated .deck-viewer-stage { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(90deg); }
+.deck-viewer-bar { display: flex; align-items: center; gap: var(--s-2); }
+.deck-viewer-bar .icon-btn { background: #1e293b; border-color: #334155; color: #f8fafc; }
+.deck-viewer-bar .icon-btn:disabled { opacity: 0.4; }
+.deck-viewer-count { color: #f8fafc; font-variant-numeric: tabular-nums; min-width: 64px; text-align: center; font-weight: 600; }
+.deck-preview-btn { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: var(--r-s); text-align: left; }

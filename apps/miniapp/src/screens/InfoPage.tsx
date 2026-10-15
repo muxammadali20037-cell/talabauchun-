@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useMe } from "../lib/auth";
 import { useT } from "../lib/i18n";
 import { openTelegramLink } from "../lib/telegram";
@@ -15,7 +16,8 @@ export function InfoPage({ kind }: { kind: "terms" | "privacy" | "help" }) {
           <div className="card stack">
             <p className="small" style={{ whiteSpace: "pre-line" }}>{t("info.helpBody")}</p>
           </div>
-          {bot && <button className="btn btn-primary" onClick={() => openTelegramLink(`https://t.me/${bot}?start=support`)}>{t("info.writeSupport")}</button>}
+          <Link className="btn btn-primary" to="/support">{t("info.writeSupport")}</Link>
+          {bot && <button className="btn btn-ghost" onClick={() => openTelegramLink(`https://t.me/${bot}?start=support`)}>{t("info.writeSupportBot")}</button>}
         </div>
       </Screen>
     );

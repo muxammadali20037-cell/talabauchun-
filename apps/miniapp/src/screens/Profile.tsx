@@ -45,7 +45,7 @@ export function Profile() {
           <h3>{t("profile.credits")}</h3>
           <p>{t("profile.balance", { n: me.balance })}</p>
           <p className="caption">{t("profile.creditsHint")}</p>
-          {!me.features.payments && <p className="caption">{t("bot.paymentsDisabled")}</p>}
+          <Link className="btn btn-secondary" to="/billing">⭐ {t("billing.title")}</Link>
         </section>
 
         <section className="card stack">
@@ -85,7 +85,9 @@ export function Profile() {
         </section>
 
         <section className="list">
-          <Link className="list-item" to="/help"><span className="grow">❔ {t("profile.support")}</span><span className="chev">›</span></Link>
+          <Link className="list-item" to="/help"><span className="grow">❔ {t("profile.help")}</span><span className="chev">›</span></Link>
+          <Link className="list-item" to="/support"><span className="grow">💬 {t("profile.support")}</span><span className="chev">›</span></Link>
+          <Link className="list-item" to="/profile/data"><span className="grow">📦 {t("data.title")}</span><span className="chev">›</span></Link>
           <Link className="list-item" to="/privacy"><span className="grow">🔐 {t("profile.privacy")}</span><span className="chev">›</span></Link>
           <Link className="list-item" to="/terms"><span className="grow">📄 {t("profile.terms")}</span><span className="chev">›</span></Link>
         </section>

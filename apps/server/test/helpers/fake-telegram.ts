@@ -98,6 +98,8 @@ export class FakeTelegram {
       }
       case "getChatMember":
         return { status: "member", user: { id: Number(p.user_id), is_bot: true, first_name: "bot" } };
+      case "getWebhookInfo":
+        return { url: "", has_custom_certificate: false, pending_update_count: 0 };
       case "createInvoiceLink":
         return `https://t.me/$invoice_${this.seq++}`;
       case "getMe":
