@@ -1,0 +1,60 @@
+{
+  "when": "2026-10-15T18:59:58.521Z",
+  "environment": {
+    "cpus": 4,
+    "cpuModel": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "memGb": 17,
+    "node": "v22.22.0",
+    "network": "loopback (same container)",
+    "server": "single Node process (tsx), PostgreSQL local",
+    "postgres": "PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)",
+    "fsync": "on",
+    "synchronousCommit": "on"
+  },
+  "participants": 100,
+  "questions": 3,
+  "joinHttpMs": {
+    "n": 100,
+    "p50": 246,
+    "p95": 262,
+    "p99": 270,
+    "max": 271
+  },
+  "wsConnectAllMs": 492,
+  "questionFanoutMs": {
+    "n": 300,
+    "p50": 31,
+    "p95": 165,
+    "p99": 166,
+    "max": 166
+  },
+  "answerAckMs": {
+    "n": 300,
+    "p50": 4,
+    "p95": 8,
+    "p99": 11,
+    "max": 16
+  },
+  "restGetMeMs": {
+    "n": 1000,
+    "p50": 59,
+    "p95": 116,
+    "p99": 132,
+    "max": 146
+  },
+  "restRoomStateMs": {
+    "n": 250,
+    "p50": 94,
+    "p95": 122,
+    "p99": 137,
+    "max": 145
+  },
+  "rejectedAnswers": 0,
+  "integrity": {
+    "answers": 300,
+    "dupes": 0,
+    "wrongPoints": 0
+  },
+  "leaderboardSize": 100,
+  "target": "pilot target p95 < 1000 ms for API and answer confirmation (not a guarantee)"
+}

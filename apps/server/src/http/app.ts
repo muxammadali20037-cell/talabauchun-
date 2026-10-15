@@ -59,7 +59,17 @@ export async function buildApp(deps: Deps, opts: { hub?: RoomHub; logger?: boole
     } else reply.header("cache-control", "no-store");
   });
 
-  await app.register(rateLimit, { global: true, max: 300, timeWindow: "1 minute", keyGenerator: (req) => req.user?.id ?? req.ip });
+  // Limits are per session (hashed bearer token) when present, so a whole class behind one
+  // campus NAT address is not throttled as a single client; anonymous calls fall back to IP.
+  await app.register(rateLimit, {
+    global: true,
+    max: 300,
+    timeWindow: "1 minute",
+    keyGenerator: (req) => {
+      const h = req.headers.authorization;
+      return h?.startsWith("Bearer ") ? "s:" + sha256Hex(h.slice(7)).slice(0, 32) : "ip:" + req.ip;
+    },
+  });
   await app.register(multipart, { limits: { fileSize: deps.cfg.MAX_UPLOAD_MB * 1024 * 1024, files: 1, fields: 10 } });
   await app.register(websocket, { options: { maxPayload: 16 * 1024 } });
 
