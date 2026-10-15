@@ -66,3 +66,40 @@ test("dark theme keeps readable contrast for body text, buttons and badges", asy
   expect(low).toEqual([]);
   await ctx.close();
 });
+
+test("Russian, English and Uzbek Cyrillic: every main screen fits 320 px and shows no text left over from another language", async ({ browser }) => {
+  const failures: string[] = [];
+  const cases = [
+    { lang: "ru", code: "ru", id: 4400011 },
+    { lang: "en", code: "en", id: 4400012 },
+    { lang: "uz-Cyrl", code: "uz", id: 4400013 },
+  ] as const;
+  for (const c of cases) {
+    const ctx = await browser.newContext({ viewport: { width: 320, height: 720 } });
+    const page = await ctx.newPage();
+    await asTelegramUser(page, { id: c.id, first_name: "Test", language_code: c.code });
+    if (c.lang === "uz-Cyrl") {
+      await page.goto("/app/#/profile");
+      await page.locator("select").first().selectOption("uz-Cyrl");
+      await expect(page.locator("nav").getByText("Профил")).toBeVisible();
+    }
+    for (const r of ROUTES) {
+      await page.goto(`/app/#${r}`);
+      await expect(page.locator("main h1").first()).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      if (!(await noHorizontalScroll(page))) failures.push(`${c.lang} ${r}: horizontal scroll`);
+      // language names in the language picker are written in their own language on purpose
+      const text = (await page.evaluate(() => document.body.innerText)).replace(/Ўзбекча \(кирилл\)|Oʻzbekcha( \(lotin\))?|Ўзбекча|Русский|English/g, "");
+      // Uzbek Latin is the source language: its okina letters (oʻ, gʻ) must not leak into other UIs;
+      // the English UI must not contain Cyrillic, the Russian and Cyrillic UIs no Uzbek Latin words
+      if (/[ʻʼ]/.test(text)) failures.push(`${c.lang} ${r}: Uzbek Latin text: ${text.match(/\S*[ʻʼ]\S*/)?.[0]}`);
+      if (c.lang === "en" && /[А-Яа-яЁёЎўҚқҒғҲҳ]/.test(text)) failures.push(`${c.lang} ${r}: Cyrillic text: ${text.match(/\S*[А-Яа-яЁёЎўҚқҒғҲҳ]\S*/)?.[0]}`);
+      if (c.lang !== "en" && /\b(va|uchun|bilan|yoki|savol|kitob|yaratish)\b/i.test(text)) failures.push(`${c.lang} ${r}: Uzbek Latin word: ${text.match(/\b(va|uchun|bilan|yoki|savol|kitob|yaratish)\b/i)?.[0]}`);
+    }
+    await page.goto("/app/#/");
+    await expect(page.locator("main h1").first()).toBeVisible();
+    await page.screenshot({ path: `${SHOTS}/21-home-${c.lang}-320.png`, fullPage: true });
+    await ctx.close();
+  }
+  expect(failures).toEqual([]);
+});

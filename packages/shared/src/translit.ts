@@ -4,8 +4,9 @@
  * normalised first so user-typed text (o', g`, o‘) is handled as well.
  *
  * Used to derive the uz-Cyrl interface dictionary from the uz (Latin) one and
- * to offer a Cyrillic view of user content. Loanword spellings that differ
- * between scripts (e.g. "ts"/"ц") are intentionally not guessed.
+ * to offer a Cyrillic view of user content. Of the loanword spellings that
+ * differ between scripts only -tsiya/-tsion (→ ц) and "quiz" are handled;
+ * others are not guessed.
  */
 const SIMPLE: Record<string, string> = {
   a: "а", b: "б", d: "д", f: "ф", g: "г", h: "ҳ", i: "и", j: "ж", k: "к", l: "л",
@@ -59,11 +60,15 @@ export function latinToCyrillic(input: string): string {
     const lower2 = two.toLowerCase();
     const prev = s[i - 1];
     const atWordStart = i === 0 || !/[A-Za-zʻʼ]/.test(prev ?? "");
+    // loanwords: -tsiya/-tsion are written with ц (prezentatsiya → презентация); "quiz" → квиз
+    if (lower2 === "ts" && /^i[yo]/i.test(s.slice(i + 2, i + 4))) { out += applyCase(two, "ц", s[i + 2]); i += 2; continue; }
+    if (atWordStart && s.slice(i, i + 4).toLowerCase() === "quiz") { out += applyCase(s.slice(i, i + 4), "квиз", s[i + 4]); i += 4; continue; }
     if (lower2 === "o" + OKINA) { out += applyCase(two[0]!, "ў", s[i + 2]); i += 2; continue; }
     if (lower2 === "g" + OKINA) { out += applyCase(two[0]!, "ғ", s[i + 2]); i += 2; continue; }
     if (lower2 === "sh") { out += applyCase(two, "ш", s[i + 2]); i += 2; continue; }
     if (lower2 === "ch") { out += applyCase(two, "ч", s[i + 2]); i += 2; continue; }
-    if (lower2 === "yo") { out += applyCase(two, "ё", s[i + 2]); i += 2; continue; }
+    // "yoʻ" is й + ў (yoʻq → йўқ), not ё + stray okina
+    if (lower2 === "yo" && s[i + 2] !== OKINA) { out += applyCase(two, "ё", s[i + 2]); i += 2; continue; }
     if (lower2 === "yu") { out += applyCase(two, "ю", s[i + 2]); i += 2; continue; }
     if (lower2 === "ya") { out += applyCase(two, "я", s[i + 2]); i += 2; continue; }
     if (lower2 === "ye") { out += applyCase(two, "е", s[i + 2]); i += 2; continue; }

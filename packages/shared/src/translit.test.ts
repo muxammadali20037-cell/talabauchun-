@@ -12,6 +12,13 @@ describe("latinToCyrillic", () => {
     expect(latinToCyrillic("maʼno")).toBe("маъно");
     expect(latinToCyrillic("ekran")).toBe("экран");
     expect(latinToCyrillic("SH")).toBe("Ш");
+    expect(latinToCyrillic("yoʻq")).toBe("йўқ");
+    expect(latinToCyrillic("Yoʻl")).toBe("Йўл");
+    expect(latinToCyrillic("yoz")).toBe("ёз");
+    expect(latinToCyrillic("Prezentatsiya")).toBe("Презентация");
+    expect(latinToCyrillic("operatsion tizim")).toBe("операцион тизим");
+    expect(latinToCyrillic("Quiz yaratish, quizlar")).toBe("Квиз яратиш, квизлар");
+    expect(latinToCyrillic("tsex")).toBe("тсех");
   });
   it("normalizes apostrophe look-alikes", () => {
     expect(normalizeUzbekLatin("o'qish g`oya")).toBe("oʻqish gʻoya");
@@ -31,7 +38,7 @@ describe("latinToCyrillic", () => {
     const allowed = /TALABA AI|Telegram|Anthropic \(Claude\) API|Mini App|\bID\b|PDF|DOCX|PPTX|TXT|JPG\/PNG|CSV\/XLSX|OCR|AI|Quiz Studio|Academic Clean|Modern Data|Creative Seminar|\{[a-z]+\}|<\/?b>|\/[a-z_]+|https?:\S+|MB/g;
     const leftovers = flat
       .map((s) => s.replace(allowed, ""))
-      .filter((s) => /[A-Za-z]/.test(s));
+      .filter((s) => /[A-Za-zʻʼ]/.test(s)); // okina/tutuq must have become ў/ғ/ъ
     expect(leftovers).toEqual([]);
   });
 });

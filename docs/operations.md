@@ -6,9 +6,10 @@
   Mini App’dagi “oʻqituvchi” profili administrator huquqini **bermaydi**.
 - Admin panel: Mini App → Profil → **Admin** (`/app/#/admin`). Boshqa foydalanuvchilarga 403.
 - Har bir oʻzgartirish (tarif, model, flag, moderatsiya, javob, kredit, refund, ish qayta ishga tushirish)
-  **yaqinda kirilgan sessiyani** talab qiladi (`ADMIN_FRESH_SESSION_MIN`, standart 15 daqiqa) va
-  `audit_events` ga bajaruvchi, vaqt va IP bilan yoziladi. Mini App sessiya eskirgan boʻlsa avtomatik qayta kiradi;
-  Mini App 1 soatdan koʻp ochiq turgan boʻlsa, uni yopib qayta oching.
+  **yaqinda Telegramda ochilgan Mini App**ni talab qiladi: Telegram imzolagan kirish vaqti (`auth_date`)
+  `ADMIN_FRESH_SESSION_MIN` (standart 15 daqiqa) dan eski boʻlmasligi kerak. Amal
+  `audit_events` ga bajaruvchi, vaqt va IP bilan yoziladi. “Qayta kirish kerak” xabari chiqsa, Mini App’ni yopib,
+  Telegramda qayta oching (avtomatik qayta kirish bu cheklovni chetlab oʻtmaydi).
 - Analitika agregat: admin talabalarning shaxsiy fayllari va javoblarini koʻrmaydi. Moderatsiyada faqat
   shikoyat qilingan savol matni koʻrinadi.
 
@@ -95,4 +96,4 @@ hujjatlar roʻyxati, sahifa matni va qidiruv ishladi; backup’dan keyin oʻchir
 | Bot javob bermayapti | `getWebhookInfo`, `talaba_outbox_pending` | Webhook URL/secret (setup skriptini qayta ishga tushiring); 429 boʻlsa outbox `retry_after` ni kutadi |
 | Toʻlov “toʻlandi” deydi, kredit yoʻq | Admin → Toʻlovlar (holat), `/paysupport` murojaati | Kredit faqat `successful_payment` dan keyin; holat `pending` boʻlsa Telegram hodisasi kelmagan — `getWebhookInfo` ni tekshiring. Kerak boʻlsa qaytaring yoki kreditni sabab bilan tuzating |
 | Eksport (PPTX/PDF) yiqilmoqda | Admin → Ishlar (`renderer_missing`, `render_timeout`, `export_checks_failed`) | LibreOffice va shriftlar oʻrnatilganini tekshiring; kontent saqlanadi, foydalanuvchi qayta urinadi |
-| Disk toʻlmoqda | `df`, `STORAGE_DIR` hajmi | Eski eksportlar va 7 kundan oshgan maʼlumot eksportlarini tozalash; diskni kengaytirish |
+| Disk toʻlmoqda | `df`, `STORAGE_DIR` hajmi | Worker har soatda tozalaydi: maʼlumot eksportlari 7 kundan, deckning oxirgisi boʻlmagan eksportlari 30 kundan keyin oʻchadi (`src/ops/retention.ts`). Worker ishlayotganini tekshiring; kerak boʻlsa diskni kengaytiring |
