@@ -80,6 +80,7 @@ export async function buildApp(deps: Deps, opts: { hub?: RoomHub; logger?: boole
     if (status === 429) return reply.status(429).send({ error: { code: "rate_limited" } });
     if (status && status < 500) return reply.status(status).send({ error: { code: "bad_request" } });
     req.log.error({ err }, "unhandled error");
+    if (process.env.TEST_DEBUG) console.error(err);
     return reply.status(500).send({ error: { code: "internal_error" } });
   });
 

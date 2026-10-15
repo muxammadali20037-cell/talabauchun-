@@ -7,6 +7,8 @@ export const RoomSettings = z.object({
   showLeaderboard: z.boolean().default(true),
   shuffleOptions: z.boolean().default(true),
   mode: z.enum(["individual", "teams", "async", "live"]).default("live"),
+  /** Quiz Battle: number of teams (members are balanced automatically) */
+  teamCount: z.number().int().min(2).max(4).default(2),
   revealExplanation: z.enum(["after_question", "after_quiz"]).default("after_question"),
   autoAdvance: z.boolean().default(false),
   hostGraceSec: z.number().int().min(5).max(120).default(20),
@@ -45,7 +47,10 @@ export type RoomStateView = {
   reveal: { questionId: string; correctOptionIds: string[]; explanation: string | null; source: string | null; counts: Record<string, number> } | null;
   myScore: { points: number; correct: number; answered: number } | null;
   leaderboard: { userId: string; name: string; points: number; correct: number }[] | null;
-  rules: { pointsCorrect: number; speedBonusMax: number; showLeaderboard: boolean; timePerQuestionSec: number };
+  rules: { pointsCorrect: number; speedBonusMax: number; showLeaderboard: boolean; timePerQuestionSec: number; teamScoring: "average" | null };
+  /** Quiz Battle only: team score = average of members' points (fair for unequal team sizes) */
+  teams: { id: string; name: string; color: string; members: number; averagePoints: number }[] | null;
+  myTeamId: string | null;
   hostConnected: boolean;
 };
 

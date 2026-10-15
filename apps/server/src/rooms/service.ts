@@ -48,6 +48,11 @@ export async function createRoom(deps: Deps, user: UserRow, quizId: string, rawS
           values (${humanCode(6)}, ${q.title}, ${q.published_version_id}, ${workspaceId}, ${user.id}, ${tx.json(settings as never)}, ${qs.map((x) => x.id)})
           returning id, code`;
         await tx`insert into room_members (room_id, user_id, display_name, role) values (${room!.id}, ${user.id}, ${displayName(user)}, 'host')`;
+        if (settings.mode === "teams") {
+          const palette = [["A", "#4F46E5"], ["B", "#0E7490"], ["C", "#B45309"], ["D", "#BE185D"]] as const;
+          for (const [name, color] of palette.slice(0, settings.teamCount)) await tx`insert into teams (room_id, name, color) values (${room!.id}, ${name}, ${color})`;
+          await tx`update rooms set team_count = ${settings.teamCount} where id = ${room!.id}`;
+        }
         await event(tx, room!.id, "created", user.id, { quizId });
         const invite = await issueInvite(tx, deps, room!.id, user.id);
         return { roomId: room!.id, code: room!.code, ...invite };
@@ -109,9 +114,17 @@ export async function joinRoom(deps: Deps, user: UserRow, p: { inviteToken?: str
   const room = await getRoom(deps.sql, roomId);
   if (room.status === "cancelled" || room.expires_at < new Date()) throw new AppError("room_closed", 410);
   const name = (p.nickname?.trim() || displayName(user)).replace(/[\u0000-\u001f<>]/g, "").slice(0, 40);
-  await deps.sql`
-    insert into room_members (room_id, user_id, display_name) values (${roomId}, ${user.id}, ${name})
-    on conflict (room_id, user_id) do update set display_name = case when room_members.role = 'host' then room_members.display_name else excluded.display_name end`;
+  await deps.sql.begin(async (tx) => {
+    await tx`select id from rooms where id = ${roomId} for update`;
+    // Quiz Battle: new participants go to the smallest team (ties → first team)
+    const [team] = room.settings.mode === "teams"
+      ? await tx<{ id: string }[]>`select t.id from teams t left join room_members m on m.team_id = t.id where t.room_id = ${roomId}
+          group by t.id, t.name order by count(m.user_id), t.name limit 1`
+      : [];
+    await tx`
+      insert into room_members (room_id, user_id, display_name, team_id) values (${roomId}, ${user.id}, ${name}, ${team?.id ?? null})
+      on conflict (room_id, user_id) do update set display_name = case when room_members.role = 'host' then room_members.display_name else excluded.display_name end`;
+  });
   await event(deps.sql, roomId, "joined", user.id);
   await notifyRoom(deps.sql, roomId);
   return { roomId };
@@ -258,12 +271,15 @@ export type SharedRoomState = {
   scores: Map<string, { points: number; correct: number; answered: number }>;
   leaderboard: { userId: string; name: string; points: number; correct: number }[];
   hostConnected: boolean;
+  teams: { id: string; name: string; color: string; memberIds: string[] }[];
+  teamOf: Map<string, string>;
 };
 
 /** Loads everything common to all viewers in a few queries (used to fan out to 100+ sockets). */
 export async function loadSharedState(sql: Sql, roomId: string): Promise<SharedRoomState> {
   const room = await getRoom(sql, roomId);
-  const members = await sql<{ user_id: string; display_name: string; connected: boolean; role: string }[]>`select user_id, display_name, connected, role from room_members where room_id = ${roomId} order by joined_at`;
+  const members = await sql<{ user_id: string; display_name: string; connected: boolean; role: string; team_id: string | null }[]>`select user_id, display_name, connected, role, team_id from room_members where room_id = ${roomId} order by joined_at`;
+  const teamRows = room.settings.mode === "teams" ? await sql<{ id: string; name: string; color: string }[]>`select id, name, color from teams where room_id = ${roomId} order by name` : [];
   const qid = room.current_index >= 0 ? room.question_ids[room.current_index] ?? null : null;
   let question: SharedRoomState["question"] = null;
   let answers = new Map<string, { optionIds: string[]; at: number }>();
@@ -307,7 +323,19 @@ export async function loadSharedState(sql: Sql, roomId: string): Promise<SharedR
     scores,
     leaderboard,
     hostConnected: members.some((m) => (m.user_id === room.host_id || m.user_id === room.co_host_id) && m.connected),
+    teams: teamRows.map((t) => ({ ...t, memberIds: members.filter((m) => m.team_id === t.id && m.role !== "host").map((m) => m.user_id) })),
+    teamOf: new Map(members.filter((m) => m.team_id).map((m) => [m.user_id, m.team_id!])),
   };
+}
+
+/** Team standings: average member points, so a bigger team gets no advantage from size alone. */
+export function teamStandings(shared: SharedRoomState) {
+  return shared.teams
+    .map((t) => {
+      const total = t.memberIds.reduce((s, id) => s + (shared.scores.get(id)?.points ?? 0), 0);
+      return { id: t.id, name: t.name, color: t.color, members: t.memberIds.length, averagePoints: t.memberIds.length ? Math.round((total / t.memberIds.length) * 10) / 10 : 0 };
+    })
+    .sort((a, b) => b.averagePoints - a.averagePoints);
 }
 
 /** Per-viewer projection: participants never receive the key before reveal, nor other people's choices. */
@@ -345,8 +373,10 @@ export function viewFor(shared: SharedRoomState, userId: string, secret: string,
     reveal: shared.reveal,
     myScore: shared.scores.get(userId) ?? (isHost ? null : { points: 0, correct: 0, answered: 0 }),
     leaderboard: showBoard ? shared.leaderboard : null,
-    rules: { pointsCorrect: 100, speedBonusMax: room.settings.speedBonus ? room.settings.speedBonusMax : 0, showLeaderboard: room.settings.showLeaderboard, timePerQuestionSec: room.settings.timePerQuestionSec },
+    rules: { pointsCorrect: 100, speedBonusMax: room.settings.speedBonus ? room.settings.speedBonusMax : 0, showLeaderboard: room.settings.showLeaderboard, timePerQuestionSec: room.settings.timePerQuestionSec, teamScoring: room.settings.mode === "teams" ? "average" : null },
     hostConnected: shared.hostConnected,
+    teams: room.settings.mode === "teams" ? teamStandings(shared) : null,
+    myTeamId: shared.teamOf.get(userId) ?? null,
   };
 }
 
