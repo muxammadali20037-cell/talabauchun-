@@ -27,6 +27,8 @@ export type JobRow = {
   attempts: number;
   max_attempts: number;
   cancel_requested: boolean;
+  run_after: Date;
+  lease_expires_at: Date | null;
   credit_reservation_id: string | null;
   notify_chat_id: string | null;
   created_at: Date;

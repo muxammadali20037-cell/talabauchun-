@@ -29,6 +29,8 @@ const EnvSchema = z.object({
   ADMIN_FRESH_SESSION_MIN: z.coerce.number().int().min(1).max(240).default(15),
   /** bearer token for GET /metrics (Prometheus); empty = admins only */
   METRICS_TOKEN: z.string().default(""),
+  /** append-only list of completed account deletions, kept OUTSIDE the database and storage backups so a restore can re-apply them */
+  DELETION_LOG_PATH: z.string().default(""),
   SUPPORT_CHAT_ID: z.string().optional(),
   TERMS_URL: z.string().optional(),
   PRIVACY_URL: z.string().optional(),

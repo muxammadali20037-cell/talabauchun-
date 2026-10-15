@@ -848,6 +848,10 @@ export const uz = {
   billing: {
     invoiceDescription: "{title}: {credits} kredit, {days} kun",
   },
+  account: {
+    exportReady: "📦 Maʼlumotlaringiz eksporti tayyor. Mini App → Profil → “Maʼlumotlarim” boʻlimidan 7 kun ichida yuklab oling.",
+    deleted: "Hisobingiz va materiallaringiz oʻchirildi. Toʻlov yozuvlari qonun boʻyicha shaxsingizsiz saqlanadi. Qayta boshlash uchun /start bosing.",
+  },
 } as const;
 
 type DeepStringRecord<T> = { readonly [K in keyof T]: T[K] extends string ? string : DeepStringRecord<T[K]> };

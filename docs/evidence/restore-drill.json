@@ -1,0 +1,36 @@
+{
+  "when": "2026-10-15T20:06:58.901Z",
+  "postgres": "PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit",
+  "backupMs": 223,
+  "restoreMs": 808,
+  "backupBytes": {
+    "db": 181219,
+    "storage": 75974
+  },
+  "rowsVerified": {
+    "users": 3,
+    "documents": 2,
+    "document_versions": 2,
+    "pages": 6,
+    "chunks": 7,
+    "quizzes": 1,
+    "questions": 3,
+    "options": 12,
+    "private_answer_keys": 3,
+    "credit_ledger": 5,
+    "generation_jobs": 4,
+    "sessions": 3
+  },
+  "filesVerified": 3,
+  "checks": [
+    "sha256 of backup files",
+    "row counts equal",
+    "every storage file sha256 equal",
+    "migrations equal",
+    "/readyz 200 on restored DB",
+    "login + document list + page text + search on restored DB",
+    "deletion after backup re-applied from the external log",
+    "restore refuses a non-empty target"
+  ],
+  "lostDatabase": "talaba_t_4ef48ef510"
+}

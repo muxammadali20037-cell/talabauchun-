@@ -11,7 +11,8 @@
     "build": "node build.mjs",
     "migrate": "tsx src/db/migrate-cli.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "ops:reapply-deletions": "tsx src/ops/reapply-deletions.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.134.0",

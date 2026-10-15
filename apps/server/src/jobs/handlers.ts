@@ -1,3 +1,4 @@
+import { accountJobHandlers } from "../account/data";
 import type { Deps } from "../deps";
 import type { JobHandler } from "./queue";
 import { ingestHandler } from "../ingest/pipeline";
@@ -8,6 +9,7 @@ export function jobHandlers(deps: Deps, extra: Record<string, JobHandler> = {}):
   return {
     ingest_document: ingestHandler(deps),
     generate_quiz: quizGenerateHandler(deps),
+    ...accountJobHandlers(deps),
     ...extra,
   };
 }

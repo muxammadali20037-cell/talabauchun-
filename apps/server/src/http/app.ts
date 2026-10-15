@@ -27,6 +27,7 @@ import { registerDeckRoutes } from "./deck-routes";
 import { registerGroupRoutes } from "./group-routes";
 import { registerAdminRoutes } from "./admin-routes";
 import { registerMetrics } from "./metrics";
+import { registerAccountRoutes } from "./account-routes";
 import { registerStudyRoutes } from "./study-routes";
 import { registerBillingRoutes } from "./billing-routes";
 
@@ -377,7 +378,7 @@ export async function buildApp(deps: Deps, opts: { hub?: RoomHub; logger?: boole
     if (!deps.storage.verify(key, q.name, q.exp, q.sig)) throw new AppError("link_expired", 403);
     if (!(await deps.storage.exists(key))) throw new AppError("not_found", 404);
     const ext = q.name.split(".").pop()?.toLowerCase();
-    const type = ext === "pdf" ? "application/pdf" : ext === "pptx" ? "application/vnd.openxmlformats-officedocument.presentationml.presentation" : "application/octet-stream";
+    const type = ext === "pdf" ? "application/pdf" : ext === "pptx" ? "application/vnd.openxmlformats-officedocument.presentationml.presentation" : ext === "zip" ? "application/zip" : "application/octet-stream";
     reply.header("content-type", type);
     reply.header("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(q.name)}`);
     reply.header("cache-control", "private, no-store");
@@ -390,6 +391,7 @@ export async function buildApp(deps: Deps, opts: { hub?: RoomHub; logger?: boole
   await registerStudyRoutes(app, deps, { auth, me });
   await registerBillingRoutes(app, deps, { auth, me });
   await registerAdminRoutes(app, deps, { auth, me });
+  await registerAccountRoutes(app, deps, { auth, me });
 
   // ── Mini App static files ──
   const dist = path.resolve(process.cwd(), deps.cfg.MINIAPP_DIST_DIR);

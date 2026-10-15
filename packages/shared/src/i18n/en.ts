@@ -845,4 +845,8 @@ export const en: Messages = {
   billing: {
     invoiceDescription: "{title}: {credits} credits, {days} days",
   },
+  account: {
+    exportReady: "📦 Your data export is ready. Download it within 7 days in the Mini App → Profile → “My data”.",
+    deleted: "Your account and materials were deleted. Payment records are kept without your identity, as the law requires. Press /start to begin again.",
+  },
 };
