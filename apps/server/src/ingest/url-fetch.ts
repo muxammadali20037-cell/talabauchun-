@@ -24,12 +24,36 @@ export type SafeFetchOptions = {
   timeoutMs?: number;
   maxRedirects?: number;
   resolver?: Resolver;
-  /** Tests only: allow non-public addresses (never set in production code paths). */
-  allowPrivateForTests?: boolean;
+  /** Tests only: exact non-public addresses to allow (never set in production code paths). */
+  allowPrivateForTests?: string[];
   allowedPorts?: number[];
 };
 
 export type SafeFetchResult = { finalUrl: string; status: number; contentType: string; body: Buffer };
+
+/** Validates one hop (the first URL and every redirect target) and returns the address to pin. */
+export async function validateHop(raw: string, opts: Pick<SafeFetchOptions, "resolver" | "allowPrivateForTests" | "allowedPorts"> = {}): Promise<{ url: URL; address: string; family: number }> {
+  const resolver = opts.resolver ?? defaultResolver;
+  const allowedPorts = opts.allowedPorts ?? [80, 443];
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new ExtractError("blocked_url", "invalid url");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw new ExtractError("blocked_url", "scheme not allowed");
+  if (url.username || url.password) throw new ExtractError("blocked_url", "credentials in url");
+  const port = url.port ? Number(url.port) : url.protocol === "https:" ? 443 : 80;
+  if (!allowedPorts.includes(port)) throw new ExtractError("blocked_url", "port not allowed");
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  if (/^(localhost|.*\.localhost|.*\.local|.*\.internal|metadata\.google\.internal)$/i.test(host)) throw new ExtractError("blocked_url", "host not allowed");
+  const candidates = isIP(host) ? [{ address: host, family: isIP(host) }] : await resolver(host).catch(() => []);
+  if (!candidates.length) throw new ExtractError("fetch_failed", "dns failed");
+  // every resolved address must be public: a mixed answer is treated as a rebinding attempt
+  const allowed = new Set(opts.allowPrivateForTests ?? []);
+  if (candidates.some((c) => !isPublicAddress(c.address) && !allowed.has(c.address))) throw new ExtractError("blocked_url", "non-public address");
+  return { url, address: candidates[0]!.address, family: candidates[0]!.family };
+}
 
 /**
  * SSRF-hardened GET: validates scheme/port, resolves DNS itself, rejects any
@@ -40,27 +64,10 @@ export type SafeFetchResult = { finalUrl: string; status: number; contentType: s
 export async function safeFetch(rawUrl: string, opts: SafeFetchOptions = {}): Promise<SafeFetchResult> {
   const maxBytes = opts.maxBytes ?? 8 * 1024 * 1024;
   const maxRedirects = opts.maxRedirects ?? 3;
-  const resolver = opts.resolver ?? defaultResolver;
-  const allowedPorts = opts.allowedPorts ?? [80, 443];
   let current = rawUrl;
   for (let hop = 0; hop <= maxRedirects; hop++) {
-    let url: URL;
-    try {
-      url = new URL(current);
-    } catch {
-      throw new ExtractError("blocked_url", "invalid url");
-    }
-    if (url.protocol !== "http:" && url.protocol !== "https:") throw new ExtractError("blocked_url", "scheme not allowed");
-    if (url.username || url.password) throw new ExtractError("blocked_url", "credentials in url");
-    const port = url.port ? Number(url.port) : url.protocol === "https:" ? 443 : 80;
-    if (!allowedPorts.includes(port)) throw new ExtractError("blocked_url", "port not allowed");
-    const host = url.hostname.replace(/^\[|\]$/g, "");
-    if (/^(localhost|.*\.localhost|.*\.local|.*\.internal|metadata\.google\.internal)$/i.test(host)) throw new ExtractError("blocked_url", "host not allowed");
-
-    const candidates = isIP(host) ? [{ address: host, family: isIP(host) }] : await resolver(host).catch(() => []);
-    if (!candidates.length) throw new ExtractError("fetch_failed", "dns failed");
-    if (!opts.allowPrivateForTests && candidates.some((c) => !isPublicAddress(c.address))) throw new ExtractError("blocked_url", "non-public address");
-    const pinned = candidates[0]!;
+    const { url, address, family } = await validateHop(current, opts);
+    const pinned = { address, family };
 
     const dispatcher = new Agent({
       connect: {
