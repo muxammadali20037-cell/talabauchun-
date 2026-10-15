@@ -4,12 +4,12 @@ import { randomToken, sha256 } from "../lib/crypto";
 import { unauthorized } from "../lib/errors";
 import { getUserById, type UserRow } from "./users";
 
-export async function createSession(sql: Sql, cfg: Config, userId: string, method: "telegram_webapp" | "dev", initDataHash?: string) {
+export async function createSession(sql: Sql, cfg: Config, userId: string, method: "telegram_webapp" | "dev", initDataHash?: string, initAuthDate?: Date) {
   const token = randomToken(32);
   const expiresAt = new Date(Date.now() + cfg.SESSION_TTL_HOURS * 3600_000);
   await sql`
-    insert into sessions (user_id, token_hash, auth_method, init_data_hash, expires_at)
-    values (${userId}, ${sha256(token)}, ${method}, ${initDataHash ?? null}, ${expiresAt})`;
+    insert into sessions (user_id, token_hash, auth_method, init_data_hash, expires_at, init_auth_date)
+    values (${userId}, ${sha256(token)}, ${method}, ${initDataHash ?? null}, ${expiresAt}, ${initAuthDate ?? null})`;
   await sql`insert into user_activity (user_id, day) values (${userId}, current_date) on conflict do nothing`;
   return { token, expiresAt };
 }

@@ -5,15 +5,15 @@ import { api } from "../lib/api";
 import { useT } from "../lib/i18n";
 import { errorMessage } from "../lib/errors";
 import { haptic } from "../lib/telegram";
-import { ActionBar, Banner, ErrorState, Loading, Screen } from "../components/ui";
+import { ActionBar, Banner, ErrorState, Loading, Screen, toast } from "../components/ui";
 import { ReportButton } from "../components/ReportButton";
 
 type State = {
-  attemptId: string; quizId: string; title: string; status: string; index: number; total: number; score: number; maxScore: number;
+  attemptId: string; quizId: string; roomId: string | null; hidden: boolean; title: string; status: string; index: number; total: number; score: number | null; maxScore: number;
   question: { id: string; text: string; type: string; multiple: boolean; options: { id: string; text: string }[] } | null;
   alreadyAnswered: { question_id: string; selected_option_ids: string[]; is_correct: boolean } | null;
 };
-type Feedback = { isCorrect: boolean; correctOptionIds: string[]; correctTexts: string[]; whyWrong: string[]; explanation: string | null; source: { quote: string; documentTitle: string | null; where: string } | null; finished: boolean };
+type Feedback = { hidden?: boolean; isCorrect: boolean; correctOptionIds: string[]; correctTexts: string[]; whyWrong: string[]; explanation: string | null; source: { quote: string; documentTitle: string | null; where: string } | null; finished: boolean };
 
 /** Self-practice: answer → immediate explanation with the book source → next; results with mistake replay. */
 export function Practice() {
@@ -29,7 +29,7 @@ export function Practice() {
   const results = useQuery({
     queryKey: ["attempt-results", id],
     enabled: st.data?.status === "finished" || !!fb?.finished,
-    queryFn: () => api.post<{ score: number; maxScore: number; correct: number; total: number; mistakes: { questionId: string; text: string }[] }>(`/api/attempts/${id}/finish`),
+    queryFn: () => api.post<{ hidden: boolean; roomId: string | null; answered: number; score: number | null; maxScore: number; correct: number | null; total: number; mistakes: { questionId: string; text: string }[] }>(`/api/attempts/${id}/finish`),
   });
 
   if (st.isLoading) return <Screen title="…"><Loading /></Screen>;
@@ -37,8 +37,24 @@ export function Practice() {
   const s = st.data;
   const q = s.question;
 
+  if ((s.status === "finished" || (!q && !fb)) && results.data?.hidden) {
+    // assignment: submitted; the result opens after the deadline
+    return (
+      <Screen title={s.title}>
+        <div className="stack-l">
+          <div className="card stack" style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 44 }} aria-hidden>📨</div>
+            <h2>{t("assignment.submitted")}</h2>
+            <p className="small">{t("assignment.answeredOf", { n: results.data.answered, total: results.data.total })}</p>
+            <p className="caption">{t("assignment.resultsLater")}</p>
+          </div>
+          {s.roomId && <Link className="btn btn-secondary" to={`/assignment/${s.roomId}`}>{t("common.back")}</Link>}
+        </div>
+      </Screen>
+    );
+  }
   if ((s.status === "finished" || (!q && !fb)) && results.data) {
-    const r = results.data;
+    const r = { ...results.data, correct: results.data.correct ?? 0 };
     return (
       <Screen title={t("practice.finished")}>
         <div className="stack-l">
@@ -62,7 +78,7 @@ export function Practice() {
               }}>🔁 {t("practice.reviewMistakes")}</button>
             </section>
           ) : <Banner kind="success">{t("practice.noMistakes")}</Banner>}
-          <Link className="btn btn-secondary" to={`/quiz/${s.quizId}/edit`}>{t("common.back")}</Link>
+          <Link className="btn btn-secondary" to={s.roomId ? `/assignment/${s.roomId}` : `/quiz/${s.quizId}/edit`}>{t("common.back")}</Link>
         </div>
       </Screen>
     );
@@ -75,6 +91,15 @@ export function Practice() {
     setErr(null);
     try {
       const r = await api.post<Feedback>(`/api/attempts/${id}/answer`, { questionId: q.id, optionIds: picked });
+      if (r.hidden) {
+        // assignment: recorded without revealing correctness
+        haptic("light");
+        toast(t("room.answerAccepted"));
+        setPicked([]);
+        await qc.invalidateQueries({ queryKey: ["attempt", id] });
+        if (st.data?.roomId) void qc.invalidateQueries({ queryKey: ["assignment", st.data.roomId] });
+        return;
+      }
       setFb(r);
       haptic(r.isCorrect ? "success" : "error");
     } catch (e) {
@@ -92,7 +117,7 @@ export function Practice() {
     <Screen title={s.title}>
       <div className="stack-l">
         <div className="stack" style={{ gap: 6 }}>
-          <div className="row between caption"><span>{t("practice.question", { i: s.index + 1, n: s.total })}</span><span>{s.score / 100} ✓</span></div>
+          <div className="row between caption"><span>{t("practice.question", { i: s.index + 1, n: s.total })}</span>{s.score != null && <span>{s.score / 100} ✓</span>}</div>
           <div className="progress"><span style={{ width: `${(s.index / s.total) * 100}%` }} /></div>
         </div>
         {q && (

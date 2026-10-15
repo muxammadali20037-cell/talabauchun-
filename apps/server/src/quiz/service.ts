@@ -5,7 +5,7 @@ import type { UserRow } from "../auth/users";
 import type { Tx } from "../db/index";
 import { requireObjectRole, requireWorkspaceRole } from "../access/policy";
 import { estimateCredits, getBalance, loadPricing } from "../billing/credits";
-import { enqueueJob } from "../jobs/queue";
+import { enqueueJob, lockIdempotencyKey } from "../jobs/queue";
 import { AppError, badRequest, notFound } from "../lib/errors";
 import { describeLocator } from "../search/retrieve";
 import { findEvidenceForAnswer } from "./evidence";
@@ -34,11 +34,14 @@ export async function createQuiz(deps: Deps, user: UserRow, raw: unknown, opts: 
   const useAi = req.method !== "from_mistakes" && (req as { useAi?: boolean }).useAi !== false && !!deps.ai;
   const questionsCount =
     req.method === "from_qa" ? Math.max(1, req.qaText.split(/\n\s*\n/).length) : req.method === "from_questions" ? Math.max(1, req.questionsText.split("\n").filter((l) => l.trim()).length) : settings.count;
+  // the plan limit applies to the user's own question lists too
+  if (questionsCount > maxQuestionsPerQuiz) throw badRequest("quiz_too_many_questions", { max: maxQuestionsPerQuiz });
   const pricing = await loadPricing(deps.sql);
   const credits = estimateCredits(pricing, { kind: "quiz", questions: questionsCount, ai: useAi });
   const title = req.title?.trim() || (await defaultTitle(deps, docIds)) || "Quiz";
 
   return deps.sql.begin(async (tx) => {
+    await lockIdempotencyKey(tx, `quiz:${user.id}:${req.idempotencyKey}`);
     const [existing] = await tx<{ id: string; target_id: string }[]>`select id, target_id from generation_jobs where idempotency_key = ${`quiz:${user.id}:${req.idempotencyKey}`}`;
     if (existing) return { quizId: existing.target_id, jobId: existing.id, credits, duplicate: true };
     const [quiz] = await tx<{ id: string }[]>`

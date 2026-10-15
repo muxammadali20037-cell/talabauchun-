@@ -4,7 +4,7 @@ import JSZip from "jszip";
 import type { Deps } from "../deps";
 import type { Tx } from "../db/index";
 import type { UserRow } from "../auth/users";
-import { enqueueJob, JobError, type JobHandler } from "../jobs/queue";
+import { enqueueJob, JobError, lockIdempotencyKey, type JobHandler } from "../jobs/queue";
 import { enqueueMessage } from "../telegram/outbox";
 import { AppError } from "../lib/errors";
 import { translate } from "@talaba/shared";
@@ -17,6 +17,7 @@ export function deletionLogPath(deps: Pick<Deps, "cfg">) {
 export async function requestDataJob(deps: Deps, user: UserRow, kind: "export" | "delete", opts: { confirm?: string } = {}) {
   if (kind === "delete" && opts.confirm !== "DELETE") throw new AppError("confirmation_required", 400, "type DELETE to confirm");
   return deps.sql.begin(async (tx) => {
+    await lockIdempotencyKey(tx, `data:${user.id}:${kind}`);
     const [open] = await tx<{ id: string }[]>`select id from data_requests where user_id = ${user.id} and kind = ${kind} and status in ('pending','processing') for update`;
     if (open) return { requestId: open.id, duplicate: true };
     const [r] = await tx<{ id: string }[]>`insert into data_requests (user_id, kind) values (${user.id}, ${kind}) returning id`;

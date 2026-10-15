@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { MoveToWorkspace } from "./workspaces/Workspaces";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useT } from "../lib/i18n";
-import { Banner, ErrorState, JobProgress, Loading, Screen, toast } from "../components/ui";
+import { Banner, ErrorState, Field, JobProgress, Loading, Screen, Sheet, toast } from "../components/ui";
+import { errorMessage } from "../lib/errors";
 import { docStatusBadge, type DocSummary } from "./Library";
 import { useJob } from "../lib/jobs";
 import { tg } from "../lib/telegram";
@@ -14,6 +16,8 @@ type Detail = DocSummary & {
   versions: { id: string; version_no: number; status: string; created_at: string }[];
   hasTables: boolean;
   role: "owner" | "editor" | "viewer";
+  publishedInfo: string | null;
+  sourceUrl: string | null;
 };
 
 export function DocumentDetail() {
@@ -80,6 +84,7 @@ export function DocumentDetail() {
               <Link className="btn btn-ghost btn-sm" to={`/tutor?doc=${d.id}`}>💡 {t("tutor.askAbout")}</Link>
               <Link className="btn btn-ghost btn-sm" to={`/games/matching?doc=${d.id}`}>🧩 {t("games.matching")}</Link>
               {d.hasTables && <Link className="btn btn-ghost btn-sm" to={`/library/${d.id}/stats`}>📈 {t("stats.title")}</Link>}
+              {d.role !== "viewer" && <SourceDetails d={d} onSaved={() => doc.refetch()} />}
             </div>
           )}
         </div>
@@ -142,6 +147,43 @@ export function DocumentDetail() {
         )}
       </div>
     </Screen>
+  );
+}
+
+/** Bibliographic details used in references (slides, writing helper). Empty fields stay empty — nothing is guessed. */
+function SourceDetails({ d, onSaved }: { d: Detail; onSaved: () => void }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState(d.title);
+  const [author, setAuthor] = useState(d.author ?? "");
+  const [pub, setPub] = useState(d.publishedInfo ?? "");
+  const [url, setUrl] = useState(d.sourceUrl ?? "");
+  const [err, setErr] = useState<string | null>(null);
+  const save = async () => {
+    setErr(null);
+    try {
+      await api.patch(`/api/documents/${d.id}`, { title, author: author || null, publishedInfo: pub || null, sourceUrl: url || null });
+      toast(t("common.saved"));
+      setOpen(false);
+      onSaved();
+    } catch (e) {
+      setErr(errorMessage(e, t));
+    }
+  };
+  return (
+    <>
+      <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>📚 {t("writing.sourceDetails")}</button>
+      <Sheet open={open} onClose={() => setOpen(false)} title={t("writing.sourceDetails")}>
+        <div className="stack">
+          <Field label={t("writing.docTitle")}>{(id) => <input id={id} className="input" value={title} maxLength={300} onChange={(e) => setTitle(e.target.value)} />}</Field>
+          <Field label={t("deck.author")} hint={t("writing.authorHint")}>{(id) => <input id={id} className="input" value={author} maxLength={300} onChange={(e) => setAuthor(e.target.value)} />}</Field>
+          <Field label={t("writing.publishedInfo")} hint={t("writing.publishedInfoHint")}>{(id) => <input id={id} className="input" value={pub} maxLength={500} onChange={(e) => setPub(e.target.value)} />}</Field>
+          <Field label="URL">{(id) => <input id={id} className="input" type="url" value={url} maxLength={2000} onChange={(e) => setUrl(e.target.value)} />}</Field>
+          {err && <Banner kind="danger">{err}</Banner>}
+          <button className="btn btn-primary btn-block" disabled={!title.trim()} onClick={save}>{t("common.save")}</button>
+        </div>
+      </Sheet>
+    </>
   );
 }
 

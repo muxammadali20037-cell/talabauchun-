@@ -9,6 +9,8 @@ const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().default(8080),
   HOST: z.string().default("0.0.0.0"),
+  /** Which proxies may set X-Forwarded-For (client IP for rate limits and the audit log). Default: a proxy on the same host. */
+  TRUST_PROXY: z.string().default("127.0.0.1,::1"),
   PUBLIC_BASE_URL: z.string().url().default("http://localhost:8080"),
   DATABASE_URL: z.string().default("postgres://postgres@localhost:5432/talaba"),
   DATABASE_POOL_MAX: z.coerce.number().int().default(20),
@@ -43,6 +45,8 @@ const EnvSchema = z.object({
   AI_MODEL_FAST: z.string().default("claude-haiku-5-5"),
   AI_TIMEOUT_MS: z.coerce.number().int().default(120_000),
   AI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  /** Interactive requests (tutor, writing helper, AI summary) wait at most this long, with one retry. */
+  AI_INTERACTIVE_TIMEOUT_MS: z.coerce.number().int().default(45_000),
 
   EMBEDDINGS_PROVIDER: z.enum(["none", "voyage"]).default("none"),
   VOYAGE_API_KEY: z.string().optional(),

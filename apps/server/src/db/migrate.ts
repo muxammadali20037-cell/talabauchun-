@@ -6,7 +6,7 @@ import type { Sql } from "./index";
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const MIGRATIONS_DIR = path.join(here, "migrations");
 
-/** Applies pending *.sql migrations in lexical order, each in its own transaction, under an advisory lock. */
+/** Applies pending *.sql migrations in lexical order, all in one transaction under an advisory lock (a failing migration leaves nothing half-applied). */
 export async function migrate(sql: Sql, dir = MIGRATIONS_DIR): Promise<string[]> {
   const applied: string[] = [];
   await sql`create table if not exists schema_migrations (name text primary key, applied_at timestamptz not null default now())`;

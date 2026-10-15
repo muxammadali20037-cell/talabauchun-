@@ -29,6 +29,7 @@ export type JobRow = {
   cancel_requested: boolean;
   run_after: Date;
   lease_expires_at: Date | null;
+  locked_by: string | null;
   credit_reservation_id: string | null;
   notify_chat_id: string | null;
   created_at: Date;
@@ -43,6 +44,8 @@ export class JobError extends Error {
   }
 }
 export class JobCancelled extends Error {}
+/** This worker's lease expired and another worker took the job: stop without writing anything. */
+export class LeaseLost extends Error {}
 
 export type EnqueueInput = {
   kind: string;
@@ -79,6 +82,11 @@ export async function enqueueJob(tx: Tx, e: EnqueueInput): Promise<{ job: JobRow
   await tx`insert into job_events (job_id, type, status, message) values (${id}, 'created', 'queued', ${e.kind})`;
   await tx`select pg_notify('jobs', ${id})`;
   return { job: job!, created: true };
+}
+
+/** Serialises requests that share an idempotency key, so a double tap never races into a unique-key error. */
+export async function lockIdempotencyKey(tx: Tx, key: string) {
+  await tx`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
 }
 
 export async function requestCancel(sql: Sql, jobId: string) {
@@ -244,13 +252,15 @@ export class JobWorker {
       stage: async (status, patch) => {
         if (patch) Object.assign(checkpoint, patch);
         const idx = Math.max(0, job.stages.indexOf(status));
-        await sql`update generation_jobs set status = ${status}, stage_index = ${idx}, checkpoint = ${sql.json(checkpoint as never)}, updated_at = now() where id = ${job.id}`;
+        const r = await sql`update generation_jobs set status = ${status}, stage_index = ${idx}, checkpoint = ${sql.json(checkpoint as never)}, updated_at = now() where id = ${job.id} and locked_by = ${this.workerId} returning id`;
+        if (!r.length) throw new LeaseLost();
         await sql`insert into job_events (job_id, type, status) values (${job.id}, 'stage', ${status})`;
         await sql`select pg_notify('job_status', ${job.id})`;
       },
       saveCheckpoint: async (patch) => {
         Object.assign(checkpoint, patch);
-        await sql`update generation_jobs set checkpoint = ${sql.json(checkpoint as never)}, updated_at = now() where id = ${job.id}`;
+        const r = await sql`update generation_jobs set checkpoint = ${sql.json(checkpoint as never)}, updated_at = now() where id = ${job.id} and locked_by = ${this.workerId} returning id`;
+        if (!r.length) throw new LeaseLost();
       },
       throwIfCancelled: async () => {
         const [r] = await sql<{ cancel_requested: boolean }[]>`select cancel_requested from generation_jobs where id = ${job.id}`;
@@ -266,22 +276,30 @@ export class JobWorker {
       if (!handler) throw new JobError("unknown_job_kind");
       const { result, creditsUsed } = await handler(ctx);
       await sql.begin(async (tx) => {
-        await tx`update generation_jobs set status = 'completed', stage_index = array_length(stages, 1), result = ${tx.json(result as never)},
-          finished_at = now(), locked_by = null, lease_expires_at = null, updated_at = now() where id = ${job.id}`;
+        const own = await tx`update generation_jobs set status = 'completed', stage_index = array_length(stages, 1), result = ${tx.json(result as never)},
+          finished_at = now(), locked_by = null, lease_expires_at = null, updated_at = now() where id = ${job.id} and locked_by = ${this.workerId} returning id`;
+        if (!own.length) throw new LeaseLost();
         if (job.credit_reservation_id) await captureCredits(tx, job.credit_reservation_id, creditsUsed ?? Number.MAX_SAFE_INTEGER);
         await tx`insert into job_events (job_id, type, status) values (${job.id}, 'finished', 'completed')`;
         await tx`select pg_notify('job_status', ${job.id})`;
       });
       await this.opts.hooks?.onFinished?.({ ...job, status: "completed", result }, "completed").catch((e) => log({ err: String(e) }, "onFinished hook failed"));
     } catch (e) {
+      if (e instanceof LeaseLost) {
+        // another worker owns the job now; whatever it does is authoritative
+        log({ jobId: job.id, kind: job.kind }, "job lease lost; result discarded");
+        return;
+      }
       if (e instanceof JobCancelled) {
-        await sql.begin(async (tx) => {
-          await tx`update generation_jobs set status = 'cancelled', finished_at = now(), locked_by = null, lease_expires_at = null, updated_at = now() where id = ${job.id}`;
+        const owned = await sql.begin(async (tx) => {
+          const own = await tx`update generation_jobs set status = 'cancelled', finished_at = now(), locked_by = null, lease_expires_at = null, updated_at = now() where id = ${job.id} and locked_by = ${this.workerId} returning id`;
+          if (!own.length) return false;
           if (job.credit_reservation_id) await releaseCredits(tx, job.credit_reservation_id, "cancelled");
           await tx`insert into job_events (job_id, type, status) values (${job.id}, 'finished', 'cancelled')`;
           await tx`select pg_notify('job_status', ${job.id})`;
+          return true;
         });
-        await this.opts.hooks?.onFinished?.({ ...job, status: "cancelled" }, "cancelled").catch(() => {});
+        if (owned) await this.opts.hooks?.onFinished?.({ ...job, status: "cancelled" }, "cancelled").catch(() => {});
         return;
       }
       const code = e instanceof JobError ? e.code : "internal_error";
@@ -294,16 +312,18 @@ export class JobWorker {
       if (retryable && attempts < job.max_attempts) {
         const backoffSec = Math.min(300, 5 * 3 ** (attempts - 1));
         await sql`update generation_jobs set status = 'queued', locked_by = null, lease_expires_at = null,
-          run_after = now() + make_interval(secs => ${backoffSec}), error_code = ${code}, updated_at = now() where id = ${job.id}`;
+          run_after = now() + make_interval(secs => ${backoffSec}), error_code = ${code}, updated_at = now() where id = ${job.id} and locked_by = ${this.workerId}`;
       } else {
-        await sql.begin(async (tx) => {
-          await tx`update generation_jobs set status = 'failed', error_code = ${code}, error_message = ${code}, finished_at = now(),
-            locked_by = null, lease_expires_at = null, updated_at = now() where id = ${job.id}`;
+        const owned = await sql.begin(async (tx) => {
+          const own = await tx`update generation_jobs set status = 'failed', error_code = ${code}, error_message = ${code}, finished_at = now(),
+            locked_by = null, lease_expires_at = null, updated_at = now() where id = ${job.id} and locked_by = ${this.workerId} returning id`;
+          if (!own.length) return false;
           if (job.credit_reservation_id) await releaseCredits(tx, job.credit_reservation_id, "failed");
           await tx`insert into job_events (job_id, type, status, message) values (${job.id}, 'finished', 'failed', ${code})`;
           await tx`select pg_notify('job_status', ${job.id})`;
+          return true;
         });
-        await this.opts.hooks?.onFinished?.({ ...job, status: "failed", error_code: code }, "failed").catch(() => {});
+        if (owned) await this.opts.hooks?.onFinished?.({ ...job, status: "failed", error_code: code }, "failed").catch(() => {});
       }
     } finally {
       clearInterval(heartbeat);

@@ -2,7 +2,9 @@ import { z } from "zod";
 import type { Deps } from "../deps";
 import type { UserRow } from "../auth/users";
 import { requireObjectRole } from "../access/policy";
-import { UNTRUSTED_DATA_RULES } from "../ai/client";
+import { AiError, UNTRUSTED_DATA_RULES } from "../ai/client";
+import { AppError } from "../lib/errors";
+import { assertAiAssistQuota } from "../billing/plans";
 import { describeLocator, type RetrievedChunk } from "../search/retrieve";
 import { contentStems, locateQuote, splitKeep } from "../quiz/text";
 import { capitalize, findDefinitions } from "../quiz/terms";
@@ -60,14 +62,19 @@ export async function summarizeDocument(deps: Deps, user: UserRow, documentId: s
   if (opts.useAi && deps.ai && out.length) {
     const Schema = z.object({ sections: z.array(z.object({ index: z.number(), points: z.array(z.object({ text: z.string(), quote: z.string() })) })) });
     const blocks = out.map((s, i) => `<section index="${i}" title="${s.title.replace(/"/g, "")}">\n<source>\n${s.points.map((p) => p.quote).join("\n")}\n</source>\n</section>`).join("\n");
+    await assertAiAssistQuota(deps.sql, user.id);
     const res = await deps.ai.structured({
       task: "tutor",
       tier: "fast",
+      interactive: true,
       system: `You condense study material into short bullet points for students, in ${user.language === "ru" ? "Russian" : user.language === "en" ? "English" : "Uzbek"}. ${UNTRUSTED_DATA_RULES} Each point must include a verbatim quote from its section's <source> that supports it.`,
       user: blocks,
       schema: Schema,
       effort: "low",
       meta: { userId: user.id },
+    }).catch((e) => {
+      if (e instanceof AiError) throw new AppError(`ai_${e.code}`, e.retryable ? 503 : 502);
+      throw e;
     });
     for (const sec of res.data.sections) {
       const target = out[sec.index];

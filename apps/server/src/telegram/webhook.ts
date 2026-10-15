@@ -17,7 +17,8 @@ export async function registerTelegramWebhook(app: FastifyInstance, deps: Deps) 
     if (typeof got !== "string" || !safeEqual(got, secret)) return reply.status(401).send({ ok: false });
     const update = req.body as TgUpdate;
     if (!update || typeof update.update_id !== "number") return reply.status(400).send({ ok: false });
-    await bot.handle(update);
+    // a copy of an update that is still being handled: let Telegram retry later
+    if ((await bot.handle(update)) === "busy") return reply.status(503).send({ ok: false });
     return { ok: true };
   });
 }

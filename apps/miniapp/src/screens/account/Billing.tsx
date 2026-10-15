@@ -11,7 +11,7 @@ import { Badge, Banner, ErrorState, Loading, Screen } from "../../components/ui"
 type Plan = { code: string; title: string; priceStars: number; credits: number; periodDays: number | null; limits: Record<string, number>; purchasable: boolean };
 type Billing = {
   paymentsEnabled: boolean; balance: number; pricing: Record<string, number>; plans: Plan[];
-  current: { planCode: string; endsAt: string | null; maxQuestionsPerQuiz: number; maxSlides: number; maxUploadMb: number; maxOcrPagesPerMonth: number };
+  current: { planCode: string; endsAt: string | null; maxQuestionsPerQuiz: number; maxSlides: number; maxUploadMb: number; maxOcrPagesPerMonth: number; aiAssistPerDay: number };
 };
 type History = { ledger: { id: string; entry_type: string; amount: number; reason: string | null; created_at: string }[]; payments: { id: string; plan_code: string; amount: number; credits: number; status: string; created_at: string }[] };
 
@@ -81,6 +81,7 @@ export function Billing() {
             <li>{t("billing.limitSlides", { n: d.current.maxSlides })}</li>
             <li>{t("billing.limitUpload", { n: d.current.maxUploadMb })}</li>
             <li>{t("billing.limitOcr", { n: d.current.maxOcrPagesPerMonth })}</li>
+            <li>{t("billing.limitAiHelp", { n: d.current.aiAssistPerDay })}</li>
           </ul>
           <p className="caption">{t("profile.creditsHint")}</p>
         </section>
@@ -91,7 +92,6 @@ export function Billing() {
             <dt>{t("billing.costQuizAi")}</dt><dd>{t("billing.perCredit", { n: price.quizAiQuestionsPerCredit ?? 0 })}</dd>
             <dt>{t("billing.costQuizNoAi")}</dt><dd>{t("billing.perCredit", { n: price.quizExtractiveQuestionsPerCredit ?? 0 })}</dd>
             <dt>{t("billing.costDeckAi")}</dt><dd>{t("billing.creditsPerSlide", { n: price.deckAiCreditsPerSlide ?? 0 })}</dd>
-            <dt>{t("billing.costOcr")}</dt><dd>{t("billing.pagesPerCredit", { n: price.ocrPagesPerCredit ?? 0 })}</dd>
           </dl>
           <p className="caption">{t("billing.costsHint")}</p>
         </section>

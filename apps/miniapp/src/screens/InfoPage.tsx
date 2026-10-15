@@ -25,6 +25,7 @@ export function InfoPage({ kind }: { kind: "terms" | "privacy" | "help" }) {
     <Screen title={kind === "terms" ? t("profile.terms") : t("profile.privacy")}>
       <div className="card stack">
         <p className="small" style={{ whiteSpace: "pre-line" }}>{kind === "terms" ? t("info.termsBody") : t("info.privacyBody")}</p>
+        {kind === "privacy" && me.features.semanticSearch && <p className="small">{t("info.privacyEmbeddings")}</p>}
         <p className="caption">{t("info.draftNote")}</p>
       </div>
     </Screen>

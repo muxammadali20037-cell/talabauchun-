@@ -63,7 +63,8 @@ export async function handlePreCheckout(deps: Deps, q: { id: string; from: { id:
   const ok =
     !!p && p.status === "pending" && p.currency === q.currency && q.currency === "XTR" && p.amount === q.total_amount && p.user_tg === String(q.from.id) &&
     !!plan && plan.active && plan.version === p.plan_snapshot.version;
-  await deps.tg?.call("answerPreCheckoutQuery", ok ? { pre_checkout_query_id: q.id, ok: true } : { pre_checkout_query_id: q.id, ok: false, error_message: "Invoice is no longer valid. Please request a new one." });
+  const payer = ok ? null : await getUserByTelegramId(deps.sql, q.from.id);
+  await deps.tg?.call("answerPreCheckoutQuery", ok ? { pre_checkout_query_id: q.id, ok: true } : { pre_checkout_query_id: q.id, ok: false, error_message: translate(payer?.language ?? "uz", "billing.invoiceInvalid") });
   return ok;
 }
 
@@ -100,7 +101,7 @@ export async function handleSuccessfulPayment(
 }
 
 /** Admin refund: calls refundStarPayment first; ledger/entitlements change only after Telegram confirms. */
-export async function refundPayment(deps: Deps, adminId: string, paymentId: string) {
+export async function refundPayment(deps: Deps, adminId: string, paymentId: string, ip?: string) {
   const [p] = await deps.sql<{ id: string; status: string; credits: number; user_id: string; telegram_payment_charge_id: string | null; user_tg: string }[]>`
     select p.id, p.status, p.credits, p.user_id, p.telegram_payment_charge_id, coalesce(p.payer_telegram_id, u.telegram_id)::text as user_tg from payments p join users u on u.id = p.user_id where p.id = ${paymentId}`;
   if (!p) throw new AppError("not_found", 404);
@@ -109,12 +110,12 @@ export async function refundPayment(deps: Deps, adminId: string, paymentId: stri
   if (!deps.tg) throw new AppError("telegram_not_configured", 503);
   if (!p.user_tg) throw new AppError("payer_unknown", 409);
   await deps.tg.call("refundStarPayment", { user_id: Number(p.user_tg), telegram_payment_charge_id: p.telegram_payment_charge_id });
-  await applyRefund(deps, p.telegram_payment_charge_id, adminId);
+  await applyRefund(deps, p.telegram_payment_charge_id, adminId, ip);
   return { refunded: true };
 }
 
 /** Shared by the admin action and the `refunded_payment` service message (idempotent). */
-export async function applyRefund(deps: Deps, chargeId: string, actorId: string | null) {
+export async function applyRefund(deps: Deps, chargeId: string, actorId: string | null, ip?: string) {
   await deps.sql.begin(async (tx) => {
     const [p] = await tx<{ id: string; status: string; credits: number; user_id: string }[]>`select id, status, credits, user_id from payments where telegram_payment_charge_id = ${chargeId} for update`;
     if (!p || p.status === "refunded") return;
@@ -122,7 +123,7 @@ export async function applyRefund(deps: Deps, chargeId: string, actorId: string 
     await tx`insert into credit_ledger (user_id, entry_type, amount, payment_id, reason, idempotency_key)
       values (${p.user_id}, 'refund', ${-p.credits}, ${p.id}, 'payment refunded', ${"refund:" + chargeId}) on conflict (idempotency_key) do nothing`;
     await tx`update entitlements set status = 'revoked', ends_at = now() where source_payment_id = ${p.id} and status = 'active'`;
-    await tx`insert into audit_events (actor_id, action, target_type, target_id) values (${actorId}, 'payment.refund', 'payment', ${p.id})`;
+    await tx`insert into audit_events (actor_id, action, target_type, target_id, ip) values (${actorId}, 'payment.refund', 'payment', ${p.id}, ${ip ?? null})`;
   });
 }
 

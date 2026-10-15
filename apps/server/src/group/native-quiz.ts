@@ -118,6 +118,12 @@ export async function tickGroupRuns(deps: Deps) {
   return processed;
 }
 
+/** "3/10. Question" — the counter is dropped rather than cutting the question when both do not fit. */
+export function pollQuestion(text: string, index: number, total: number) {
+  const numbered = `${index + 1}/${total}. ${text}`;
+  return numbered.length <= TELEGRAM.pollQuestionMax ? numbered : text.slice(0, TELEGRAM.pollQuestionMax);
+}
+
 async function sendPoll(deps: Deps, run: RunRow, index: number) {
   const qid = run.question_ids[index]!;
   const [q] = await deps.sql<{ text: string; explanation: string | null; quote: string | null; locator: Record<string, unknown> | null; language: Lang }[]>`
@@ -131,11 +137,13 @@ async function sendPoll(deps: Deps, run: RunRow, index: number) {
   const where = q!.locator ? describeLocator(q!.locator as never, lang) : null;
   const msg = await deps.tg!.call<{ message_id: number; poll?: { id: string } }>("sendPoll", {
     chat_id: run.chat_id,
-    question: `${index + 1}/${run.question_ids.length}. ${q!.text}`.slice(0, TELEGRAM.pollQuestionMax),
+    question: pollQuestion(q!.text, index, run.question_ids.length),
     options: order.map((id) => ({ text: byId.get(id)!.slice(0, TELEGRAM.pollOptionMax) })),
     type: "quiz",
     is_anonymous: run.anonymous,
     allows_multiple_answers: false,
+    // single-answer quizzes also carry the long-standing field, so older Bot API servers get the key too
+    ...(correct.length === 1 ? { correct_option_id: correct[0] } : {}),
     correct_option_ids: correct,
     ...(pollExplanation(q!.explanation, where) ? { explanation: pollExplanation(q!.explanation, where) } : {}),
     open_period: run.open_period,

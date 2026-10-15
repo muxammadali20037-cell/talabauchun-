@@ -1,3 +1,4 @@
+import { assertAiAssistQuota } from "../billing/plans";
 import { z } from "zod";
 import type { Deps } from "../deps";
 import type { UserRow } from "../auth/users";
@@ -66,7 +67,8 @@ Each claim must quote verbatim the passage (source_id) that supports it. For mat
   const userMsg = `${block || "<source id=\"none\">(no passages found)</source>"}\n\nQuestion: ${p.question}${p.studentAnswer ? `\nStudent's answer: ${p.studentAnswer}` : ""}`;
   let res;
   try {
-    res = await deps.ai.structured({ task: "tutor", tier: "fast", system, user: userMsg, schema: Answer, effort: "low", meta: { userId: user.id } });
+    await assertAiAssistQuota(deps.sql, user.id);
+    res = await deps.ai.structured({ task: "tutor", tier: "fast", system, user: userMsg, schema: Answer, effort: "low", meta: { userId: user.id }, interactive: true });
   } catch (e) {
     if (e instanceof AiError) throw new AppError(`ai_${e.code}`, e.retryable ? 503 : 502);
     throw e;

@@ -40,15 +40,20 @@ class TokenBucket {
  * messages/second overall, about 1/second per private chat and 20/minute per
  * group. We stay below those and honour retry_after on 429.
  */
+// Only one process sends at a time (advisory lock), so the rate limits below hold for the whole deployment.
+const OUTBOX_LOCK = 7_310_001;
+
 export class OutboxSender {
   private global = new TokenBucket(25, 25);
   private perChat = new Map<string, TokenBucket>();
+  private lastUse = new Map<string, number>();
   private timer: NodeJS.Timeout | null = null;
   private running = false;
 
   constructor(private readonly sql: Sql, private readonly api: TelegramApi, private readonly log: (o: object, m: string) => void = () => {}) {}
 
   private chatBucket(chatId: string) {
+    this.lastUse.set(chatId, Date.now());
     let b = this.perChat.get(chatId);
     if (!b) {
       b = chatId.startsWith("-") ? new TokenBucket(3, 20 / 60) : new TokenBucket(3, 1);
@@ -70,14 +75,32 @@ export class OutboxSender {
   async tick(batch = 20): Promise<number> {
     if (this.running) return 0;
     this.running = true;
-    let sent = 0;
     try {
+      return await this.sql.begin(async (lockTx) => {
+        const [lock] = await lockTx<{ ok: boolean }[]>`select pg_try_advisory_xact_lock(${OUTBOX_LOCK}) as ok`;
+        if (!lock?.ok) return 0; // another process is the sender right now
+        return this.sendBatch(batch);
+      });
+    } finally {
+      this.running = false;
+    }
+  }
+
+  private async sendBatch(batch: number): Promise<number> {
+    let sent = 0;
+    // a sender that died mid-send leaves rows in 'sending'; after 2 minutes they are retried (at-least-once)
+    await this.sql`update notifications set status = 'pending' where status = 'sending' and next_attempt_at < now()`;
+    if (this.perChat.size > 2000) {
+      const cutoff = Date.now() - 10 * 60_000;
+      for (const [chat, at] of this.lastUse) if (at < cutoff) (this.lastUse.delete(chat), this.perChat.delete(chat));
+    }
+    {
       const rows = await this.sql.begin(async (tx) => {
         const picked = await tx<{ id: string; chat_id: string; method: string; payload: Record<string, unknown>; attempts: number; user_id: string | null }[]>`
           select id, chat_id::text as chat_id, method, payload, attempts, user_id from notifications
           where status = 'pending' and next_attempt_at <= now()
           order by next_attempt_at limit ${batch} for update skip locked`;
-        if (picked.length) await tx`update notifications set status = 'sending' where id in ${tx(picked.map((p) => p.id))}`;
+        if (picked.length) await tx`update notifications set status = 'sending', next_attempt_at = now() + interval '2 minutes' where id in ${tx(picked.map((p) => p.id))}`;
         return picked;
       });
       for (const n of rows) {
@@ -107,8 +130,6 @@ export class OutboxSender {
           }
         }
       }
-    } finally {
-      this.running = false;
     }
     return sent;
   }

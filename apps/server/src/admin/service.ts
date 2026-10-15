@@ -299,9 +299,7 @@ export async function listPayments(deps: Deps, status?: string) {
 }
 
 export async function adminRefund(deps: Deps, adminId: string, paymentId: string, ip?: string) {
-  const r = await refundPayment(deps, adminId, paymentId);
-  if (ip) await deps.sql`update audit_events set ip = ${ip} where id = (select max(id) from audit_events where actor_id = ${adminId} and action = 'payment.refund')`;
-  return r;
+  return refundPayment(deps, adminId, paymentId, ip);
 }
 
 export async function listAudit(deps: Deps, q: { action?: string; limit?: number }) {

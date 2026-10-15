@@ -25,7 +25,7 @@ export function Shell({ children }: { children: ReactNode }) {
         {children}
       </main>
       {!fullScreen && (
-        <nav className="bottom-nav" aria-label="Asosiy">
+        <nav className="bottom-nav" aria-label={t("nav.main")}>
           <ul>
             {NAV.map((n) => (
               <li key={n.to}>

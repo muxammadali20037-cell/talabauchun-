@@ -10,7 +10,7 @@ import type { Lang } from "@talaba/shared";
 export type AttemptMode = "bot_practice" | "app_practice" | "mistakes";
 
 type AttemptRow = {
-  id: string; quiz_version_id: string; user_id: string; mode: string; question_ids: string[]; option_orders: Record<string, string[]>;
+  id: string; quiz_version_id: string; user_id: string; mode: string; room_id: string | null; question_ids: string[]; option_orders: Record<string, string[]>;
   current_index: number; score: number; max_score: number; status: string; started_at: Date; finished_at: Date | null;
 };
 
@@ -69,10 +69,12 @@ export async function attemptState(deps: Deps, user: UserRow, attemptId: string)
     const byId = new Map(opts.map((o) => [o.id, o]));
     question = { id: q!.id, text: q!.text, type: q!.type, multiple: q!.type === "multiple", options: (a.option_orders[qid] ?? []).map((id) => byId.get(id)).filter(Boolean) as { id: string; text: string }[] };
   }
+  const hidden = !(await assignmentClosed(deps, a.room_id));
+  const already = qid ? answered.find((x) => x.question_id === qid) ?? null : null;
   return {
-    attemptId: a.id, quizId: title?.quiz_id, title: title?.title ?? "", status: a.status, index: idx, total: a.question_ids.length,
-    score: a.score, maxScore: a.max_score, question, answeredIds: answered.map((x) => x.question_id),
-    alreadyAnswered: qid ? answered.find((x) => x.question_id === qid) ?? null : null,
+    attemptId: a.id, quizId: title?.quiz_id, roomId: a.room_id, hidden, title: title?.title ?? "", status: a.status, index: idx, total: a.question_ids.length,
+    score: hidden ? null : a.score, maxScore: a.max_score, question, answeredIds: answered.map((x) => x.question_id),
+    alreadyAnswered: already && hidden ? { question_id: already.question_id, selected_option_ids: already.selected_option_ids } : already,
   };
 }
 
@@ -84,6 +86,11 @@ export async function answerAttempt(deps: Deps, user: UserRow, attemptId: string
   const a = await loadAttempt(deps, user, attemptId);
   if (a.status !== "active") throw new AppError("attempt_finished", 409);
   if (!a.question_ids.includes(questionId)) throw new AppError("question_not_in_attempt", 400);
+  if (a.room_id) {
+    // assignment attempts are accepted only until the deadline (database clock)
+    const [open] = await deps.sql<{ ok: boolean }[]>`select status = 'running' and assignment_due_at > now() as ok from rooms where id = ${a.room_id}`;
+    if (!open?.ok) throw new AppError("assignment_closed", 409);
+  }
   const valid = new Set(a.option_orders[questionId] ?? []);
   if (!optionIds.length || optionIds.some((id) => !valid.has(id))) throw new AppError("invalid_option", 400);
   const [key] = await deps.sql<{ correct_option_ids: string[] }[]>`select correct_option_ids from private_answer_keys where question_id = ${questionId}`;
@@ -104,6 +111,16 @@ export async function answerAttempt(deps: Deps, user: UserRow, attemptId: string
     const [prev] = await tx<{ is_correct: boolean; points: number; selected_option_ids: string[] }[]>`select is_correct, points, selected_option_ids from attempt_answers where attempt_id = ${a.id} and question_id = ${questionId}`;
     return { duplicate: true, isCorrect: prev!.is_correct, points: prev!.points };
   });
+  if (a.room_id) {
+    // assignment: the answer is recorded, but correctness, key and explanation stay hidden until it closes
+    const [f] = await deps.sql<{ current_index: number }[]>`select current_index from attempts where id = ${a.id}`;
+    const finished = (f?.current_index ?? 0) >= a.question_ids.length;
+    if (finished) await deps.sql`update attempts set status = 'finished', finished_at = coalesce(finished_at, now()) where id = ${a.id}`;
+    return {
+      duplicate: result.duplicate, hidden: true, isCorrect: null, points: null, correctOptionIds: [] as string[], correctTexts: [] as string[], whyWrong: [] as string[],
+      explanation: null, source: null, finished, score: null, nextIndex: f?.current_index ?? 0,
+    };
+  }
   const [q] = await deps.sql<{ explanation: string | null; quote: string | null; locator: Record<string, unknown> | null; document_title: string | null }[]>`
     select q.explanation, sr.quote, sr.locator, sr.document_title from questions q left join source_references sr on sr.id = q.source_ref_id where q.id = ${questionId}`;
   const opts = await deps.sql<{ id: string; text: string; why_wrong: string | null }[]>`select id, text, why_wrong from options where question_id = ${questionId}`;
@@ -112,6 +129,7 @@ export async function answerAttempt(deps: Deps, user: UserRow, attemptId: string
   if (done) await deps.sql`update attempts set status = 'finished', finished_at = coalesce(finished_at, now()) where id = ${a.id}`;
   return {
     ...result,
+    hidden: false,
     correctOptionIds: [...correctSet],
     correctTexts: opts.filter((o) => correctSet.has(o.id)).map((o) => o.text),
     whyWrong: opts.filter((o) => chosen.includes(o.id) && !correctSet.has(o.id)).map((o) => o.why_wrong).filter(Boolean),
@@ -129,13 +147,25 @@ export async function finishAttempt(deps: Deps, user: UserRow, attemptId: string
   return attemptResults(deps, user, attemptId);
 }
 
+/** Assignment attempts reveal results only after the assignment closes. */
+async function assignmentClosed(deps: Deps, roomId: string | null) {
+  if (!roomId) return true;
+  const [r] = await deps.sql<{ closed: boolean }[]>`select not (status = 'running' and assignment_due_at > now()) as closed from rooms where id = ${roomId}`;
+  return r?.closed ?? true;
+}
+
 export async function attemptResults(deps: Deps, user: UserRow, attemptId: string) {
   const a = await loadAttempt(deps, user, attemptId);
+  if (!(await assignmentClosed(deps, a.room_id))) {
+    const [n] = await deps.sql<{ n: number }[]>`select count(*)::int as n from attempt_answers where attempt_id = ${a.id}`;
+    const [st] = await deps.sql<{ status: string }[]>`select status from attempts where id = ${a.id}`;
+    return { attemptId: a.id, roomId: a.room_id, status: st!.status, hidden: true, answered: n!.n, total: a.question_ids.length, score: null, maxScore: a.max_score, correct: null, mistakes: [] as { questionId: string; text: string }[] };
+  }
   const answers = await deps.sql<{ question_id: string; is_correct: boolean; points: number; selected_option_ids: string[]; text: string }[]>`
     select aa.question_id, aa.is_correct, aa.points, aa.selected_option_ids, q.text from attempt_answers aa join questions q on q.id = aa.question_id where aa.attempt_id = ${a.id}`;
   const [fresh] = await deps.sql<{ score: number; status: string }[]>`select score, status from attempts where id = ${a.id}`;
   return {
-    attemptId: a.id, status: fresh!.status, score: fresh!.score, maxScore: a.max_score, total: a.question_ids.length,
+    attemptId: a.id, roomId: a.room_id, status: fresh!.status, hidden: false, answered: answers.length, score: fresh!.score, maxScore: a.max_score, total: a.question_ids.length,
     correct: answers.filter((x) => x.is_correct).length, mistakes: answers.filter((x) => !x.is_correct).map((x) => ({ questionId: x.question_id, text: x.text })),
   };
 }

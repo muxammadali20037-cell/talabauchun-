@@ -19,8 +19,8 @@ export function Join() {
     setBusy(true);
     setErr(null);
     try {
-      const r = await api.post<{ roomId: string }>("/api/rooms/join", { inviteToken: token, nickname: nick.trim() || undefined });
-      navigate(`/room/${r.roomId}`, { replace: true });
+      const r = await api.post<{ roomId: string; mode?: string }>("/api/rooms/join", { inviteToken: token, nickname: nick.trim() || undefined });
+      navigate(r.mode === "async" ? `/assignment/${r.roomId}` : `/room/${r.roomId}`, { replace: true });
     } catch (e) {
       setErr(errorMessage(e, t));
     } finally {

@@ -7,7 +7,7 @@ import type { UserRow } from "../auth/users";
 import type { Tx } from "../db/index";
 import { requireObjectRole, requireWorkspaceRole } from "../access/policy";
 import { estimateCredits, getBalance, loadPricing } from "../billing/credits";
-import { enqueueJob, jobView, type JobRow } from "../jobs/queue";
+import { enqueueJob, jobView, lockIdempotencyKey, type JobRow } from "../jobs/queue";
 import { AppError, badRequest, conflict, notFound } from "../lib/errors";
 import { createQuiz } from "../quiz/service";
 import type { ExportInput, GenerateInput, RegenerateInput } from "./generate";
@@ -63,6 +63,7 @@ export async function createDeck(deps: Deps, user: UserRow, raw: unknown, opts: 
   const title = (req.title?.trim() || settings.topic.trim()).slice(0, 200);
   const key = `deck:${user.id}:${req.idempotencyKey}`;
   return deps.sql.begin(async (tx) => {
+    await lockIdempotencyKey(tx, key);
     const [existing] = await tx<{ id: string; target_id: string }[]>`select id, target_id from generation_jobs where idempotency_key = ${key}`;
     if (existing) return { deckId: existing.target_id, jobId: existing.id, credits, duplicate: true };
     const [deck] = await tx<{ id: string }[]>`
@@ -92,6 +93,7 @@ export async function generateFromOutline(deps: Deps, user: UserRow, deckId: str
   return deps.sql.begin(async (tx) => {
     const deck = await getDeckRow(tx, deckId, true);
     const key = `deckgen:${deckId}:${body.idempotencyKey}`;
+    await lockIdempotencyKey(tx, key);
     const [existing] = await tx<{ id: string }[]>`select id from generation_jobs where idempotency_key = ${key}`;
     if (existing) return { deckId, jobId: existing.id, duplicate: true };
     if (deck.status !== "plan_ready") throw conflict("deck_not_plan_ready", { status: deck.status });

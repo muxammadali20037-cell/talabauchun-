@@ -14,6 +14,7 @@
   --c-border: #e2e8f0;
   --c-success: #047857;
   --c-success-accent: #10b981;
+  --c-on-success: #ffffff;
   --c-success-bg: #ecfdf5;
   --c-warn: #a16207;
   --c-warn-bg: #fefce8;
@@ -51,6 +52,7 @@
   --c-border: #334155;
   --c-success: #34d399;
   --c-success-accent: #10b981;
+  --c-on-success: #022c22;
   --c-success-bg: #052e22;
   --c-warn: #fbbf24;
   --c-warn-bg: #2a2109;
@@ -199,7 +201,7 @@ details.more[open] { padding-bottom: var(--s-4); }
 .steps { display: flex; flex-direction: column; gap: var(--s-2); }
 .step { display: flex; align-items: center; gap: var(--s-3); font-size: var(--fs-small); }
 .step .dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--c-border); display: grid; place-items: center; font-size: 12px; flex: none; }
-.step.done .dot { border-color: var(--c-success); background: var(--c-success); color: #fff; }
+.step.done .dot { border-color: var(--c-success); background: var(--c-success); color: var(--c-on-success); }
 .step.active .dot { border-color: var(--c-primary); }
 .step.active { font-weight: 600; }
 .skeleton { background: linear-gradient(90deg, var(--c-surface-2) 25%, var(--c-border) 37%, var(--c-surface-2) 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; border-radius: var(--r-s); }
@@ -240,7 +242,7 @@ body.kb-open .bottom-nav, body.kb-open .action-bar { display: none; }
 .q-num { flex: none; width: 28px; height: 28px; border-radius: var(--r-s); background: var(--c-surface-2); display: grid; place-items: center; font-weight: 700; font-size: 14px; }
 .opt-line { display: flex; gap: var(--s-2); align-items: flex-start; font-size: 15px; padding: 6px 0; }
 .opt-line .tick { flex: none; width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
-.opt-line.is-correct .tick { background: var(--c-success); color: #fff; }
+.opt-line.is-correct .tick { background: var(--c-success); color: var(--c-on-success); }
 .opt-line:not(.is-correct) .tick { background: var(--c-surface-2); color: var(--c-text-3); }
 .evidence { border-left: 3px solid var(--c-success-accent); background: var(--c-surface-2); padding: var(--s-3); border-radius: 0 var(--r-s) var(--r-s) 0; font-size: var(--fs-small); }
 .evidence.missing { border-left-color: var(--c-danger); }

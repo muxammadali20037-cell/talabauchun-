@@ -244,3 +244,23 @@ function findSource(user: string, needle: string): string {
   for (const m of user.matchAll(/<source id="(s\d+)"[^>]*>\n([\s\S]*?)\n<\/source>/g)) if (m[2]!.includes(needle)) return m[1]!;
   return "s1";
 }
+
+describe("limits and double taps", () => {
+  it("two identical create requests at the same moment make one quiz and one debit (no unique-key error)", async () => {
+    const user = await makeUser(deps);
+    const docId = await bookFor(user);
+    const before = await getBalance(deps.sql, user.id);
+    const body = { method: "from_source", documentIds: [docId], settings: { count: 6 }, idempotencyKey: "race-key-0001" };
+    const [a, b] = await Promise.all([createQuiz(deps, user, body), createQuiz(deps, user, body)]);
+    expect(a.quizId).toBe(b.quizId);
+    expect([a.duplicate, b.duplicate].sort()).toEqual([false, true]);
+    expect(before - (await getBalance(deps.sql, user.id))).toBe(a.credits);
+  });
+
+  it("the plan's question limit applies to pasted question lists too", async () => {
+    const user = await makeUser(deps);
+    const docId = await bookFor(user);
+    const list = Array.from({ length: 31 }, (_, i) => `${i + 1}. Savol raqami ${i + 1} nima?`).join("\n");
+    await expect(createQuiz(deps, user, { method: "from_questions", documentIds: [docId], questionsText: list, idempotencyKey: "limit-qs-0001" })).rejects.toMatchObject({ code: "quiz_too_many_questions" });
+  });
+});

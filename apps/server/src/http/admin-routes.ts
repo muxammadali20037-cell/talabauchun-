@@ -23,8 +23,11 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: Deps, h: R
   const write = async (req: FastifyRequest) => {
     await read(req);
     const token = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
-    const [s] = await deps.sql<{ fresh: boolean }[]>`select created_at > now() - make_interval(mins => ${deps.cfg.ADMIN_FRESH_SESSION_MIN}) as fresh from sessions where token_hash = ${sha256(token)}`;
-    if (!s?.fresh) throw new AppError("admin_reauth_required", 401, "sign in again to confirm this admin action");
+    // Fresh = the Telegram initData behind this session was signed recently. Re-signing in with the same
+    // (older) initData does not refresh it: the admin has to reopen the Mini App from Telegram.
+    const [s] = await deps.sql<{ fresh: boolean }[]>`
+      select coalesce(init_auth_date, created_at) > now() - make_interval(mins => ${deps.cfg.ADMIN_FRESH_SESSION_MIN}) as fresh from sessions where token_hash = ${sha256(token)}`;
+    if (!s?.fresh) throw new AppError("admin_reauth_required", 403, "reopen the Mini App to confirm this admin action");
   };
   const R = { preHandler: read };
   const W = { preHandler: write, config: { rateLimit: { max: 30, timeWindow: "1 minute" } } };
@@ -40,9 +43,7 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: Deps, h: R
   app.get("/api/admin/plans", R, async () => listPlans(deps.sql, { includeInactive: true }));
   app.put("/api/admin/plans/:code", W, async (req) => {
     const code = z.string().regex(/^[a-z_]{2,40}$/).parse((req.params as { code: string }).code);
-    const plan = await updatePlan(deps.sql, me(req), code, req.body);
-    if (req.ip) await deps.sql`update audit_events set ip = ${req.ip} where id = (select max(id) from audit_events where actor_id = ${me(req)} and action = 'plan.update')`;
-    return plan;
+    return updatePlan(deps.sql, me(req), code, req.body, req.ip);
   });
 
   app.get("/api/admin/models", R, async () => admin.listModelConfigs(deps));

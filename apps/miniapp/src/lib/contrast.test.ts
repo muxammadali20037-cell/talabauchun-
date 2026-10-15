@@ -23,6 +23,7 @@ describe("design token contrast", () => {
       expect(contrast(t["c-primary"]!, t["c-surface"]!)).toBeGreaterThanOrEqual(4.5);
       expect(contrast(t["c-primary"]!, t["c-primary-soft"]!)).toBeGreaterThanOrEqual(4.5);
       expect(contrast(t["c-success"]!, t["c-success-bg"]!)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(t["c-on-success"]!, t["c-success"]!)).toBeGreaterThanOrEqual(4.5);
       expect(contrast(t["c-warn"]!, t["c-warn-bg"]!)).toBeGreaterThanOrEqual(4.5);
       expect(contrast(t["c-danger"]!, t["c-danger-bg"]!)).toBeGreaterThanOrEqual(4.5);
     });

@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { useT } from "../lib/i18n";
 import { Badge, Empty, ErrorState, Loading, Screen } from "../components/ui";
 
-type RoomItem = { id: string; title: string; status: string; role: string; created_at: string; participants: number };
+type RoomItem = { id: string; title: string; status: string; role: string; created_at: string; participants: number; mode: string; dueAt: string | null };
 type RunItem = { id: string; status: string; chat_title: string | null; anonymous: boolean; created_at: string; questions: number; title: string };
 type WsItem = { id: string; name: string; role: string; members: number };
 
@@ -43,8 +43,8 @@ export function Groups() {
           ) : (
             <div className="list">
               {rooms.data!.items.map((r) => (
-                <Link key={r.id} to={`/room/${r.id}`} className="list-item">
-                  <span aria-hidden>{r.role === "host" ? "🎤" : "🎯"}</span>
+                <Link key={r.id} to={r.mode === "async" ? `/assignment/${r.id}` : `/room/${r.id}`} className="list-item">
+                  <span aria-hidden>{r.mode === "async" ? "📅" : r.role === "host" ? "🎤" : "🎯"}</span>
                   <div className="grow">
                     <div className="break">{r.title}</div>
                     <div className="meta">{new Date(r.created_at).toLocaleString()} · {t("room.participants", { n: r.participants })}</div>

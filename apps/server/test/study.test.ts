@@ -5,10 +5,11 @@ import { buildApp } from "../src/http/app";
 import { createSession } from "../src/auth/sessions";
 import { createDocumentFromFile, createDocumentFromText } from "../src/ingest/documents";
 import { approveQuestions, createQuiz, getQuizForEditor, publishQuiz } from "../src/quiz/service";
-import { answerAttempt, attemptState, startAttempt } from "../src/quiz/practice";
+import { answerAttempt, attemptResults, attemptState, startAttempt } from "../src/quiz/practice";
 import { sm2 } from "../src/study/flashcards";
 import { buildSchedule, dueInstant, localDate } from "../src/study/plans";
 import { compute } from "../src/study/stats";
+import { startAssignment, assignmentView, closeExpiredAssignments } from "../src/rooms/assignment";
 import { createRoom, joinRoom, loadSharedState, submitAnswer, hostAction, teamStandings, setCoHost, setPresence, pauseIfHostAway } from "../src/rooms/service";
 import { createTestDeps, makeUser } from "./helpers/deps";
 import { fixture, sourceFixture } from "./helpers/fixtures";
@@ -292,5 +293,48 @@ describe("co-host", () => {
     expect(await pauseIfHostAway(deps, roomId)).toBe(true);
     await setCoHost(deps, host, roomId, null);
     await expect(hostAction(deps, helper, roomId, "resume")).rejects.toThrow();
+  });
+});
+
+describe("self-paced assignment (room mode async)", () => {
+  it("each participant takes it once before the deadline; correctness and ranking stay hidden until it closes", async () => {
+    const host = await makeUser(deps);
+    const { quizId, questions } = await bookAndQuiz(host, "assign-1");
+    const { roomId, inviteToken, mode } = await createRoom(deps, host, quizId, { mode: "async", deadlineHours: 48 }) as { roomId: string; inviteToken: string; mode: string };
+    expect(mode).toBe("async");
+    await expect(hostAction(deps, host, roomId, "start")).rejects.toMatchObject({ code: "not_for_assignment" });
+    const [a, b] = [await makeUser(deps), await makeUser(deps)];
+    for (const u of [a, b]) expect((await joinRoom(deps, u, { inviteToken })).mode).toBe("async");
+    await expect(startAssignment(deps, host, roomId)).rejects.toMatchObject({ code: "host_does_not_take" });
+
+    const sa = await startAssignment(deps, a, roomId);
+    expect((await startAssignment(deps, a, roomId)).attemptId).toBe(sa.attemptId); // one attempt per person
+    const st = await attemptState(deps, a, sa.attemptId);
+    expect(st.hidden).toBe(true);
+    const q0 = st.question!;
+    const key = questions.find((q) => q.id === q0.id)!.options!.find((o) => o.correct)!.id;
+    const r = await answerAttempt(deps, a, sa.attemptId, q0.id, [key]);
+    expect(r).toMatchObject({ hidden: true, isCorrect: null, explanation: null, score: null });
+    expect((await attemptResults(deps, a, sa.attemptId)).score).toBeNull();
+
+    let view = await assignmentView(deps, a, roomId);
+    expect(view.status).toBe("open");
+    expect(view.leaderboard).toBeNull();
+    expect(view.progress).toBeNull();
+    const hv = await assignmentView(deps, host, roomId);
+    expect(hv.progress!.map((p) => p.state).sort()).toEqual(["not_started", "started"]);
+
+    // deadline passes → closed by the worker tick; answers are refused; results and ranking open
+    await deps.sql`update rooms set assignment_due_at = now() - interval '1 minute' where id = ${roomId}`;
+    const sb = await startAssignment(deps, b, roomId).catch((e) => e);
+    expect(sb).toMatchObject({ code: "assignment_closed" });
+    const q1 = (await attemptState(deps, a, sa.attemptId)).question;
+    if (q1) await expect(answerAttempt(deps, a, sa.attemptId, q1.id, [questions.find((q) => q.id === q1.id)!.options![0]!.id])).rejects.toMatchObject({ code: "assignment_closed" });
+    expect(await closeExpiredAssignments(deps)).toBe(1);
+    view = await assignmentView(deps, a, roomId);
+    expect(view.status).toBe("closed");
+    expect(view.leaderboard).toEqual([{ rank: 1, name: expect.any(String), score: 100, isMe: true }]);
+    const res = await attemptResults(deps, a, sa.attemptId);
+    expect(res).toMatchObject({ hidden: false, score: 100, correct: 1 });
   });
 });

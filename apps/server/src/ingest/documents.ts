@@ -1,7 +1,9 @@
+import { z } from "zod";
 import type { Deps } from "../deps";
 import type { UserRow } from "../auth/users";
 import { requireObjectRole, requireWorkspaceRole } from "../access/policy";
 import { enqueueJob } from "../jobs/queue";
+import { effectiveLimits } from "../billing/plans";
 import { AppError, badRequest } from "../lib/errors";
 import { sha256Hex } from "../lib/crypto";
 import { detectKind, type SourceKind } from "./detect";
@@ -68,6 +70,8 @@ export async function createDocumentFromFile(
   const maxBytes = deps.cfg.MAX_UPLOAD_MB * 1024 * 1024;
   if (p.data.length > maxBytes) throw new AppError("file_too_large", 413, "file too large", { sizeMb: Math.ceil(p.data.length / 1048576), maxMb: deps.cfg.MAX_UPLOAD_MB });
   if (p.data.length === 0) throw badRequest("file_empty");
+  const { maxUploadMb } = await effectiveLimits(deps.sql, p.user.id);
+  if (p.data.length > maxUploadMb * 1024 * 1024) throw new AppError("file_too_large_for_plan", 413, "file too large for the plan", { sizeMb: Math.ceil(p.data.length / 1048576), maxMb: maxUploadMb });
   const detected = await detectKind(p.data, p.filename);
   if ("error" in detected) throw badRequest(detected.error === "macro_file" ? "file_macro_not_allowed" : "file_unsupported");
   const ext = p.filename.split(".").pop() ?? "";
@@ -184,7 +188,8 @@ export async function getDocument(deps: Deps, user: UserRow, id: string) {
   const [tables] = versionId
     ? await deps.sql<{ n: number }[]>`select (case when jsonb_typeof(metadata->'tables') = 'array' then jsonb_array_length(metadata->'tables') else 0 end)::int as n from document_versions where id = ${versionId}`
     : [];
-  return { ...summary, role, pages, sections, versions, hasTables: (tables?.n ?? 0) > 0 };
+  const [bib] = await deps.sql<{ published_info: string | null; source_url: string | null }[]>`select published_info, source_url from documents where id = ${id}`;
+  return { ...summary, role, pages, sections, versions, hasTables: (tables?.n ?? 0) > 0, publishedInfo: bib?.published_info ?? null, sourceUrl: bib?.source_url ?? null };
 }
 
 export async function getPageText(deps: Deps, user: UserRow, documentId: string, pageIndex: number) {
@@ -233,4 +238,25 @@ export async function addDocumentVersion(deps: Deps, user: UserRow, documentId: 
     });
     return { documentId, versionId: ver!.id, jobId: job.id, versionNo: next };
   });
+}
+
+export const DocumentMetaEdit = z.object({
+  title: z.string().trim().min(1).max(300).optional(),
+  author: z.string().trim().max(300).nullable().optional(),
+  publishedInfo: z.string().trim().max(500).nullable().optional(),
+  sourceUrl: z.string().url().max(2000).nullable().optional(),
+});
+
+/** Bibliographic details the user can correct (used for references in slides and the writing helper). */
+export async function updateDocumentMeta(deps: Deps, user: UserRow, id: string, raw: unknown) {
+  const p = DocumentMetaEdit.parse(raw);
+  await requireObjectRole(deps.sql, user, "document", id, "editor");
+  const set = (v: string | null | undefined) => (v === undefined ? undefined : v === null || v === "" ? null : v);
+  await deps.sql`update documents set
+    title = coalesce(${p.title ?? null}::text, title),
+    author = ${set(p.author) === undefined ? deps.sql`author` : set(p.author)},
+    published_info = ${set(p.publishedInfo) === undefined ? deps.sql`published_info` : set(p.publishedInfo)},
+    source_url = ${set(p.sourceUrl) === undefined ? deps.sql`source_url` : set(p.sourceUrl)},
+    updated_at = now() where id = ${id}`;
+  return getDocument(deps, user, id);
 }

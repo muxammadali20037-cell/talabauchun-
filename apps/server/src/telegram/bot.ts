@@ -45,10 +45,22 @@ export class Bot {
     return this.api.callWithRetry<{ message_id: number }>("sendMessage", { chat_id: chatId, text, parse_mode: "HTML", ...extra });
   }
 
-  /** Processes one update exactly once (update_id dedupe). Heavy work is queued as jobs. */
-  async handle(update: TgUpdate) {
-    const [fresh] = await this.deps.sql<{ update_id: string }[]>`insert into processed_updates (update_id) values (${update.update_id}) on conflict do nothing returning update_id`;
-    if (!fresh) return;
+  /**
+   * Processes each update once: it is claimed, handled, then marked done. A copy
+   * that arrives while the first is still being handled gets "busy" (the webhook
+   * answers 503 so Telegram retries); if the handler died, the claim can be taken
+   * over after 2 minutes. Heavy work is queued as jobs.
+   */
+  async handle(update: TgUpdate): Promise<"done" | "duplicate" | "busy"> {
+    const [claim] = await this.deps.sql<{ update_id: string }[]>`
+      insert into processed_updates (update_id, done, claimed_at) values (${update.update_id}, false, now())
+      on conflict (update_id) do update set claimed_at = now()
+        where processed_updates.done = false and processed_updates.claimed_at < now() - interval '2 minutes'
+      returning update_id`;
+    if (!claim) {
+      const [st] = await this.deps.sql<{ done: boolean }[]>`select done from processed_updates where update_id = ${update.update_id}`;
+      return st?.done === false ? "busy" : "duplicate";
+    }
     try {
       if (update.message) await this.onMessage(update.message);
       else if (update.callback_query) await this.onCallback(update.callback_query);
@@ -64,6 +76,8 @@ export class Bot {
         await this.send(chatId, t(lang, "bot.errorGeneric")).catch(() => {});
       }
     }
+    await this.deps.sql`update processed_updates set done = true where update_id = ${update.update_id}`;
+    return "done";
   }
 
   private async langOf(u?: TgUser): Promise<Lang> {
@@ -147,8 +161,8 @@ export class Bot {
       });
     } catch (e) {
       if (e instanceof AppError) {
-        const key = e.code === "file_unsupported" || e.code === "file_macro_not_allowed" ? "library.unsupported" : e.code === "file_too_large" ? "library.tooLarge" : "bot.errorGeneric";
-        return this.send(m.chat.id, t(lang, key as never, { size: Math.ceil(data.length / 1048576), max: this.deps.cfg.MAX_UPLOAD_MB }));
+        const key = e.code === "file_unsupported" || e.code === "file_macro_not_allowed" ? "library.unsupported" : e.code === "file_too_large" || e.code === "file_too_large_for_plan" ? "library.tooLarge" : "bot.errorGeneric";
+        return this.send(m.chat.id, t(lang, key as never, { size: Math.ceil(data.length / 1048576), max: Number(e.details?.maxMb ?? this.deps.cfg.MAX_UPLOAD_MB) }));
       }
       throw e;
     }
@@ -362,6 +376,7 @@ export class Bot {
       const optionId = questionId ? qid.option_orders[questionId]?.[Number(optPos)] : undefined;
       if (!questionId || !optionId) return ack();
       const r = await answerAttempt(this.deps, user, attemptId, questionId, [optionId], lang);
+      if (r.hidden) return ack(); // assignment attempts are taken in the Mini App
       await ack(r.isCorrect ? t(lang, "bot.practiceCorrect") : t(lang, "bot.practiceWrong", { answer: r.correctTexts.join(", ") }).replace(/<\/?b>/g, ""));
       const lines = [r.isCorrect ? t(lang, "bot.practiceCorrect") : t(lang, "bot.practiceWrong", { answer: escapeHtml(r.correctTexts.join(", ")) })];
       if (r.explanation) lines.push(t(lang, "bot.practiceExplanation", { text: escapeHtml(r.explanation) }));
@@ -411,7 +426,7 @@ export class Bot {
     const lang = user.language;
     const r = await attemptResults(this.deps, user, attemptId);
     const kb: InlineButton[][] = r.mistakes.length ? [[{ text: t(lang, "bot.practiceMistakesBtn"), callback_data: `pm:${shortId(attemptId)}` }]] : [];
-    return this.send(chatId, t(lang, "bot.practiceDone", { score: r.correct, max: r.total }) + (r.mistakes.length ? "" : `\n${t(lang, "practice.noMistakes")}`), { reply_markup: { inline_keyboard: kb } });
+    return this.send(chatId, t(lang, "bot.practiceDone", { score: r.correct ?? 0, max: r.total }) + (r.mistakes.length ? "" : `\n${t(lang, "practice.noMistakes")}`), { reply_markup: { inline_keyboard: kb } });
   }
 
   // ───────────── groups ─────────────

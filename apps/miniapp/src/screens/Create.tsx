@@ -34,6 +34,7 @@ export function Create() {
           [
             ["/cards", "🃏", "create.flashcards", "create.flashcardsHint"],
             ["/tutor", "💡", "tutor.title", "create.tutorHint"],
+            ["/writing", "✍️", "writing.title", "create.writingHint"],
             ["/plans/new", "🗓", "plans.new", "create.planHint"],
             ["/games/matching", "🧩", "games.matching", "create.matchingHint"],
             ["/library", "🗒", "create.summary", "create.summaryHint"],

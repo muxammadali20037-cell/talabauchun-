@@ -171,9 +171,11 @@ export class RoomHub {
       if (stillConnected) return;
       await setPresence(this.deps.sql, c.roomId, c.userId, false).catch(() => {});
       await this.deps.sql`select pg_notify('rooms', ${`state:${c.roomId}`})`.catch(() => {});
-      if (c.isHost) {
-        const [room] = await this.deps.sql<{ settings: { hostGraceSec?: number } }[]>`select settings from rooms where id = ${c.roomId}`.catch(() => []);
-        const grace = (room?.settings?.hostGraceSec ?? 20) * 1000;
+      // host or co-host left (roles are read now: a co-host may have been named after this socket connected)
+      const [room] = await this.deps.sql<{ settings: { hostGraceSec?: number }; host_id: string; co_host_id: string | null }[]>`select settings, host_id, co_host_id from rooms where id = ${c.roomId}`.catch(() => []);
+      if (room && (room.host_id === c.userId || room.co_host_id === c.userId)) {
+        const grace = (room.settings?.hostGraceSec ?? 20) * 1000;
+        clearTimeout(this.hostTimers.get(c.roomId));
         this.hostTimers.set(c.roomId, setTimeout(() => void pauseIfHostAway(this.deps, c.roomId).catch(() => {}), grace));
       }
     });

@@ -12,6 +12,8 @@ export const RoomSettings = z.object({
   revealExplanation: z.enum(["after_question", "after_quiz"]).default("after_question"),
   autoAdvance: z.boolean().default(false),
   hostGraceSec: z.number().int().min(5).max(120).default(20),
+  /** mode "async" (self-paced assignment): hours until the deadline */
+  deadlineHours: z.number().int().min(1).max(720).default(72),
 });
 export type RoomSettings = z.infer<typeof RoomSettings>;
 

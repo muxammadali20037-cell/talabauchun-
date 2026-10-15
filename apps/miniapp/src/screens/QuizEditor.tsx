@@ -327,6 +327,7 @@ function PlaySheet({ quizId, questions, onClose }: { quizId: string; questions: 
   const [board, setBoard] = useState(true);
   const [anon, setAnon] = useState(false);
   const [teams, setTeams] = useState(0);
+  const [deadline, setDeadline] = useState(72);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [group, setGroup] = useState<{ link: string | null; questions: number; skipped: number } | null>(null);
@@ -372,6 +373,20 @@ function PlaySheet({ quizId, questions, onClose }: { quizId: string; questions: 
             sessionStorage.setItem(`room.invite.${r.roomId}`, JSON.stringify(r));
             navigate(`/room/${r.roomId}`);
           })}>{t("room.create")}</button>
+        </section>
+        <section className="stack">
+          <h3>📅 {t("assignment.give")}</h3>
+          <p className="caption">{t("assignment.giveHint")}</p>
+          <Segmented label={t("assignment.deadline")} value={String(deadline)} onChange={(v) => setDeadline(Number(v))} options={[
+            { value: "24", label: t("assignment.hours", { n: 24 }) },
+            { value: "72", label: t("assignment.days", { n: 3 }) },
+            { value: "168", label: t("assignment.days", { n: 7 }) },
+          ]} />
+          <button className="btn btn-secondary" disabled={busy} onClick={() => run(async () => {
+            const r = await api.post<{ roomId: string; inviteLink: string | null; inviteToken: string; inviteExpiresAt: string }>("/api/rooms", { quizId, settings: { mode: "async", deadlineHours: deadline, showLeaderboard: board } });
+            sessionStorage.setItem(`room.invite.${r.roomId}`, JSON.stringify(r));
+            navigate(`/assignment/${r.roomId}`);
+          })}>{t("assignment.create")}</button>
         </section>
         <section className="stack">
           <h3>💬 {t("quiz.shareToGroup")}</h3>

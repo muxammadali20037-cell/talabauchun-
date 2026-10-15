@@ -340,19 +340,16 @@ async function exportDeck(deps: Deps, ctx: JobContext, input: ExportInput): Prom
 
 // ───────────────────────── notifications ─────────────────────────
 
-/**
- * Bot message when a long job finishes. Texts other than the existing
- * dictionary keys are plain Uzbek for now (listed for localisation).
- */
+/** Bot message when a long job finishes, in the user's language. */
 async function notify(deps: Deps, ctx: JobContext, deck: DeckRow, kind: "ready" | "plan" | "export", n = 0, format?: string) {
   if (!ctx.job.notify_chat_id) return;
   const [u] = await deps.sql<{ language: Lang }[]>`select language from users where id = ${ctx.job.user_id}`;
   const lang = u?.language ?? "uz";
   const title = escapeHtml(deck.title);
   const text =
-    kind === "ready" ? `✅ «${title}» prezentatsiyasi tayyor: ${n} ta slayd. Koʻrib chiqing, kerak boʻlsa tahrirlang va PPTX/PDF yuklab oling.`
-    : kind === "plan" ? `📝 «${title}» rejasi tayyor. Rejani koʻrib chiqing va slaydlarni yarating.`
-    : `${translate(lang, "deck.exportReady")}: «${title}» (${(format ?? "").toUpperCase()}, ${n} ta slayd).`;
+    kind === "ready" ? translate(lang, "deck.botReady", { title, n })
+    : kind === "plan" ? translate(lang, "deck.botPlanReady", { title })
+    : translate(lang, "deck.botExportReady", { title, format: (format ?? "").toUpperCase(), n });
   const url = miniAppUrl(deps.cfg, `/decks/${deck.id}`);
   await enqueueMessage(deps.sql, {
     chatId: ctx.job.notify_chat_id,

@@ -7,6 +7,8 @@ import { listMistakes } from "../study/mistakes";
 import * as plans from "../study/plans";
 import { askTutor } from "../study/tutor";
 import { summarizeDocument } from "../study/summary";
+import { writingHelp } from "../study/writing";
+import { updateDocumentMeta } from "../ingest/documents";
 import * as stats from "../study/stats";
 import { startMatching, submitMatching } from "../games/matching";
 import * as ws from "../workspaces/service";
@@ -49,6 +51,10 @@ export async function registerStudyRoutes(app: FastifyInstance, deps: Deps, h: R
   // tutor & summaries
   app.post("/api/tutor/ask", { preHandler: h.auth, config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req) => askTutor(deps, h.me(req), req.body));
   app.get("/api/documents/:id/summary", pre, async (req) => summarizeDocument(deps, h.me(req), pid(req), { useAi: (req.query as { ai?: string }).ai === "1" }));
+
+  // writing helper (outline, annotation, bibliography, polish, rubric) and bibliographic details of a source
+  app.post("/api/writing", { preHandler: h.auth, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (req) => writingHelp(deps, h.me(req), req.body));
+  app.patch("/api/documents/:id", pre, async (req) => updateDocumentMeta(deps, h.me(req), pid(req), req.body));
 
   // statistics
   app.get("/api/documents/:id/tables", pre, async (req) => ({ tables: (await stats.documentTables(deps, h.me(req), pid(req))).map((t) => ({ ...t, rows: t.rows.slice(0, 100) })) }));

@@ -7,7 +7,9 @@ import { JobWorker } from "./jobs/queue";
 import { jobHandlers } from "./jobs/handlers";
 import { slideJobHandlers } from "./slides/jobs";
 import { cleanupExpiredExports } from "./account/data";
+import { retentionCleanup } from "./ops/retention";
 import { tickReminders } from "./notify/reminders";
+import { closeExpiredAssignments } from "./rooms/assignment";
 import { OutboxSender } from "./telegram/outbox";
 import { tickGroupRuns } from "./group/native-quiz";
 import { runPolling } from "./telegram/polling";
@@ -30,9 +32,11 @@ const outbox = deps.tg ? new OutboxSender(deps.sql, deps.tg, (o, m) => log.warn(
 outbox?.start();
 const groupTimer = setInterval(() => void tickGroupRuns(deps).catch(() => {}), 1000);
 // data-export archives are offered for 7 days, then deleted
-const cleanupTimer = setInterval(() => void cleanupExpiredExports(deps).catch(() => {}), 3600_000);
+const cleanupTimer = setInterval(() => void Promise.all([cleanupExpiredExports(deps), retentionCleanup(deps)]).catch(() => {}), 3600_000);
 // study digests and deadline reminders (deduplicated, respects quiet hours)
 const reminderTimer = setInterval(() => void tickReminders(deps).catch(() => {}), 5 * 60_000);
+// self-paced assignments close at their deadline
+const assignmentTimer = setInterval(() => void closeExpiredAssignments(deps).catch(() => {}), 60_000);
 await app.listen({ port: cfg.PORT, host: cfg.HOST });
 log.info({ port: cfg.PORT, integrations: integrationStatus(cfg) }, "TALABA AI (all-in-one) started");
 const polling = new AbortController();
@@ -43,6 +47,7 @@ const shutdown = async () => {
   clearInterval(groupTimer);
   clearInterval(cleanupTimer);
   clearInterval(reminderTimer);
+  clearInterval(assignmentTimer);
   outbox?.stop();
   await app.close();
   await hub.stop();

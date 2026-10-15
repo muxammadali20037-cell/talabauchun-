@@ -2,10 +2,10 @@ import { z } from "zod";
 import type { Sql, Tx } from "../db/index";
 import { AppError, notFound } from "../lib/errors";
 
-export type PlanLimits = { maxQuestionsPerQuiz?: number; maxUploadMb?: number; maxSlides?: number; maxOcrPagesPerMonth?: number };
+export type PlanLimits = { maxQuestionsPerQuiz?: number; maxUploadMb?: number; maxSlides?: number; maxOcrPagesPerMonth?: number; aiAssistPerDay?: number };
 export type PlanRow = { code: string; title: Record<string, string>; price_stars: number; credits: number; period_days: number | null; limits: PlanLimits; active: boolean; version: number; updated_at: Date };
 
-const DEFAULT_LIMITS: Required<PlanLimits> = { maxQuestionsPerQuiz: 30, maxUploadMb: 50, maxSlides: 20, maxOcrPagesPerMonth: 300 };
+const DEFAULT_LIMITS: Required<PlanLimits> = { maxQuestionsPerQuiz: 30, maxUploadMb: 50, maxSlides: 20, maxOcrPagesPerMonth: 300, aiAssistPerDay: 40 };
 
 /**
  * Limits in force for a user: the snapshot stored with their active
@@ -31,7 +31,7 @@ export const PlanUpdate = z.object({
   priceStars: z.number().int().min(0).max(100_000).optional(),
   credits: z.number().int().min(0).max(1_000_000).optional(),
   periodDays: z.number().int().min(1).max(366).nullable().optional(),
-  limits: z.object({ maxQuestionsPerQuiz: z.number().int().min(1).max(200), maxUploadMb: z.number().int().min(1).max(500), maxSlides: z.number().int().min(1).max(80), maxOcrPagesPerMonth: z.number().int().min(0).max(100_000) }).partial().optional(),
+  limits: z.object({ maxQuestionsPerQuiz: z.number().int().min(1).max(200), maxUploadMb: z.number().int().min(1).max(500), maxSlides: z.number().int().min(1).max(80), maxOcrPagesPerMonth: z.number().int().min(0).max(100_000), aiAssistPerDay: z.number().int().min(0).max(10_000) }).partial().optional(),
   active: z.boolean().optional(),
 });
 
@@ -41,7 +41,7 @@ export const PlanUpdate = z.object({
  * their own snapshot, so nobody is charged or limited under terms they did
  * not see.
  */
-export async function updatePlan(sql: Sql, adminId: string, code: string, raw: unknown) {
+export async function updatePlan(sql: Sql, adminId: string, code: string, raw: unknown, ip?: string) {
   const p = PlanUpdate.parse(raw);
   return sql.begin(async (tx) => {
     const [cur] = await tx<PlanRow[]>`select * from plans where code = ${code} for update`;
@@ -58,9 +58,20 @@ export async function updatePlan(sql: Sql, adminId: string, code: string, raw: u
     if (next.active && code !== "free" && next.price_stars <= 0) throw new AppError("plan_price_required", 400, "a paid plan needs a price before it can be sold");
     await tx`update plans set title = ${tx.json(next.title as never)}, price_stars = ${next.price_stars}, credits = ${next.credits}, period_days = ${next.period_days},
       limits = ${tx.json(next.limits as never)}, active = ${next.active}, version = version + 1, updated_by = ${adminId}, updated_at = now() where code = ${code}`;
-    await tx`insert into audit_events (actor_id, action, target_type, target_id, data) values (${adminId}, 'plan.update', 'plan', ${code},
+    await tx`insert into audit_events (actor_id, action, target_type, target_id, ip, data) values (${adminId}, 'plan.update', 'plan', ${code}, ${ip ?? null},
       ${tx.json({ before: { price_stars: cur.price_stars, credits: cur.credits, period_days: cur.period_days, limits: cur.limits, active: cur.active, version: cur.version }, after: next } as never)})`;
     const [row] = await tx<PlanRow[]>`select * from plans where code = ${code}`;
     return row!;
   });
+}
+
+/**
+ * Tutor, writing helper and AI summaries are not charged per call; a rolling
+ * 24-hour cap per plan bounds their AI cost instead.
+ */
+export async function assertAiAssistQuota(sql: Sql | Tx, userId: string) {
+  const { aiAssistPerDay } = await effectiveLimits(sql, userId);
+  const [r] = await sql<{ n: number }[]>`
+    select count(*)::int as n from usage_events where user_id = ${userId} and kind = 'ai_tokens' and task in ('tutor', 'writing') and created_at > now() - interval '24 hours'`;
+  if ((r?.n ?? 0) >= aiAssistPerDay) throw new AppError("daily_ai_limit", 429, "daily AI help limit reached", { limit: aiAssistPerDay });
 }

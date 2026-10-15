@@ -1,3 +1,4 @@
+import * as assignment from "../rooms/assignment";
 import path from "node:path";
 import { existsSync } from "node:fs";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
@@ -44,7 +45,7 @@ export async function buildApp(deps: Deps, opts: { hub?: RoomHub; logger?: boole
   const app = Fastify({
     logger: opts.logger === false ? false : { level: deps.cfg.LOG_LEVEL, redact: ["req.headers.authorization", "req.headers.x-telegram-bot-api-secret-token"] },
     bodyLimit: 2 * 1024 * 1024,
-    trustProxy: true,
+    trustProxy: deps.cfg.TRUST_PROXY === "true" ? true : deps.cfg.TRUST_PROXY.split(",").map((x) => x.trim()).filter(Boolean),
   });
 
   app.addHook("onSend", async (req, reply) => {
@@ -116,7 +117,7 @@ export async function buildApp(deps: Deps, opts: { hub?: RoomHub; logger?: boole
     if (!deps.cfg.TELEGRAM_BOT_TOKEN) throw new AppError("telegram_not_configured", 503);
     const v = validateInitData(body.initData, deps.cfg.TELEGRAM_BOT_TOKEN, deps.cfg.TELEGRAM_INITDATA_MAX_AGE_SEC);
     const user = await upsertTelegramUser(deps.sql, deps.cfg, v.user);
-    const session = await createSession(deps.sql, deps.cfg, user.id, "telegram_webapp", sha256Hex(v.hash));
+    const session = await createSession(deps.sql, deps.cfg, user.id, "telegram_webapp", sha256Hex(v.hash), v.authDate);
     return { token: session.token, expiresAt: session.expiresAt, user: publicUser(user), startParam: v.startParam };
   });
 
@@ -233,7 +234,8 @@ export async function buildApp(deps: Deps, opts: { hub?: RoomHub; logger?: boole
   app.get("/api/rooms", { preHandler: auth }, async (req) => {
     const q = z.object({ limit: z.coerce.number().int().min(1).max(50).default(20) }).parse(req.query);
     const items = await deps.sql`
-      select r.id, r.title, r.status, m.role, r.created_at, (select count(*)::int from room_members x where x.room_id = r.id and x.role <> 'host') as participants
+      select r.id, r.title, r.status, m.role, r.created_at, coalesce(r.settings->>'mode', 'live') as mode, r.assignment_due_at as "dueAt",
+        (select count(*)::int from room_members x where x.room_id = r.id and x.role <> 'host') as participants
       from room_members m join rooms r on r.id = m.room_id where m.user_id = ${me(req).id} order by r.created_at desc limit ${q.limit}`;
     return { items };
   });
@@ -366,6 +368,9 @@ export async function buildApp(deps: Deps, opts: { hub?: RoomHub; logger?: boole
     return { ok: true };
   });
   app.get("/api/rooms/:id/results", { preHandler: auth }, async (req) => rooms.roomResults(deps, me(req), qid(req)));
+  // self-paced assignments (room mode "async")
+  app.get("/api/rooms/:id/assignment", { preHandler: auth }, async (req) => assignment.assignmentView(deps, me(req), qid(req)));
+  app.post("/api/rooms/:id/assignment/start", { preHandler: auth }, async (req) => assignment.startAssignment(deps, me(req), qid(req)));
   if (opts.hub) {
     const hub = opts.hub;
     app.get("/ws/rooms", { websocket: true }, (socket) => hub.handle(socket));

@@ -230,17 +230,20 @@ export async function aiWrite(ai: AiClient, items: PlanItem[], pack: SourcePack,
   });
   const toWrite = items.map((it, i) => ({ it, i })).filter(({ it, i }) => !drafts[i] && it.layout !== "chart" && it.layout !== "table");
   let qa: { question: string; answer: string }[] = [];
-  if (toWrite.length) {
+  // written in batches of 8 slides, so a long deck never runs into the output limit of one call
+  const BATCH = 8;
+  for (let b = 0; b < toWrite.length; b += BATCH) {
+    const part = toWrite.slice(b, b + BATCH);
     const res = await ai.structured({
       task: "slide_write",
       tier: "fast",
       system: WRITE_SYSTEM(lang, st.extras?.speech !== false),
-      user: `${pack.block || NO_MATERIAL}\n\n${toWrite.map(({ it, i }) => itemBlock(i, it)).join("\n")}`,
+      user: `${pack.block || NO_MATERIAL}\n\n${part.map(({ it, i }) => itemBlock(i, it)).join("\n")}`,
       schema: WriteOutput,
       effort: "low",
       meta,
     });
-    for (const { it, i } of toWrite) {
+    for (const { it, i } of part) {
       const w = res.data.slides.find((x) => x.index === i);
       if (!w) continue;
       const v = draftFromWritten(w, it, pack, lang);
@@ -249,7 +252,7 @@ export async function aiWrite(ai: AiClient, items: PlanItem[], pack: SourcePack,
         dropped += v.dropped;
       }
     }
-    qa = st.extras?.defenseQa !== false ? res.data.defense_qa.slice(0, 8) : [];
+    if (!qa.length && st.extras?.defenseQa !== false) qa = res.data.defense_qa.slice(0, 8);
   }
   return { drafts, dropped, qa };
 }

@@ -161,3 +161,27 @@ describe("AI provider 429 / timeout (acceptance 15)", () => {
     }
   });
 });
+
+describe("lease ownership", () => {
+  it("a worker whose lease was taken over writes nothing: no completion, no second credit settlement", async () => {
+    const user = await makeUser(deps);
+    const { job } = await deps.sql.begin((tx) =>
+      enqueueJob(tx, { kind: "test_slow_owner", userId: user.id, workspaceId: user.personal_workspace_id, idempotencyKey: `owner-${Date.now()}`, stages: ["generating"], credits: 2 }),
+    );
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const slow = new JobWorker(deps.sql, { test_slow_owner: async () => { await gate; return { result: { by: "slow" }, creditsUsed: 1 }; } }, { concurrency: 1, leaseSec: 60 });
+    const running = slow.runOnce();
+    await until(async () => (await getJob(deps.sql, job.id))?.locked_by);
+    // simulate the lease expiring and a second worker taking the job and finishing it
+    await deps.sql`update generation_jobs set lease_expires_at = now() - interval '1 second' where id = ${job.id}`;
+    const fast = new JobWorker(deps.sql, { test_slow_owner: async () => ({ result: { by: "fast" }, creditsUsed: 1 }) }, { concurrency: 1, leaseSec: 60 });
+    expect(await fast.runOnce()).toBe(true);
+    release();
+    await running;
+    const j = (await getJob(deps.sql, job.id))!;
+    expect(j.result).toEqual({ by: "fast" });
+    const settled = await deps.sql`select entry_type from credit_ledger where job_id = ${job.id} and entry_type in ('capture','release')`;
+    expect(settled.map((r) => r.entry_type).sort()).toEqual(["capture", "release"]);
+  });
+});

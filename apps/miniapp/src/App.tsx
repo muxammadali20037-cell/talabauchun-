@@ -17,6 +17,7 @@ const QuizEditor = lazy(() => import("./screens/QuizEditor").then((m) => ({ defa
 const QuizList = lazy(() => import("./screens/QuizList").then((m) => ({ default: m.QuizList })));
 const Practice = lazy(() => import("./screens/Practice").then((m) => ({ default: m.Practice })));
 const Join = lazy(() => import("./screens/Join").then((m) => ({ default: m.Join })));
+const Assignment = lazy(() => import("./screens/Assignment").then((m) => ({ default: m.Assignment })));
 const Room = lazy(() => import("./screens/Room").then((m) => ({ default: m.Room })));
 const Groups = lazy(() => import("./screens/Groups").then((m) => ({ default: m.Groups })));
 const Profile = lazy(() => import("./screens/Profile").then((m) => ({ default: m.Profile })));
@@ -29,6 +30,7 @@ const PlanDetail = lazy(() => import("./screens/study/Plans").then((m) => ({ def
 const Tutor = lazy(() => import("./screens/study/Tutor").then((m) => ({ default: m.Tutor })));
 const Summary = lazy(() => import("./screens/study/Summary").then((m) => ({ default: m.Summary })));
 const Stats = lazy(() => import("./screens/study/Stats").then((m) => ({ default: m.Stats })));
+const Writing = lazy(() => import("./screens/study/Writing").then((m) => ({ default: m.Writing })));
 const Matching = lazy(() => import("./screens/study/Matching").then((m) => ({ default: m.Matching })));
 const WorkspaceNew = lazy(() => import("./screens/workspaces/Workspaces").then((m) => ({ default: m.WorkspaceNew })));
 const WorkspaceJoin = lazy(() => import("./screens/workspaces/Workspaces").then((m) => ({ default: m.WorkspaceJoin })));
@@ -50,7 +52,14 @@ export function App() {
   useEffect(() => {
     if (state.status !== "ready" || handledStart.current) return;
     handledStart.current = true;
-    const sp = state.startParam;
+    // a reload inside the same Telegram session carries the same start_param: open the invite only once, keep the user's screen after that
+    let sp = state.startParam;
+    try {
+      if (sp && sessionStorage.getItem("startParam.handled") === sp) sp = null;
+      else if (sp) sessionStorage.setItem("startParam.handled", sp);
+    } catch {
+      // storage unavailable: open the invite as before
+    }
     if (sp && sp.startsWith("r") && sp.length > 10) navigate(`/join/${sp.slice(1)}`, { replace: true });
     else if (sp && sp.startsWith("w") && sp.length > 10) navigate(`/workspaces/join/${sp.slice(1)}`, { replace: true });
     else if (!state.me.user.onboarded && location.pathname === "/") navigate("/onboarding", { replace: true });
@@ -83,6 +92,7 @@ export function App() {
         <Route path="/attempt/:id" element={<Practice />} />
         <Route path="/join/:token" element={<Join />} />
         <Route path="/room/:id" element={<Room />} />
+        <Route path="/assignment/:id" element={<Assignment />} />
         <Route path="/groups" element={<Groups />} />
         <Route path="/workspaces/new" element={<WorkspaceNew />} />
         <Route path="/workspaces/join/:token" element={<WorkspaceJoin />} />
@@ -96,6 +106,7 @@ export function App() {
         <Route path="/library/:id/summary" element={<Summary />} />
         <Route path="/library/:id/stats" element={<Stats />} />
         <Route path="/games/matching" element={<Matching />} />
+        <Route path="/writing" element={<Writing />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile/data" element={<MyData />} />
         <Route path="/billing" element={<Billing />} />

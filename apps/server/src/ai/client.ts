@@ -5,7 +5,7 @@ import type { Config } from "../config";
 import type { Sql } from "../db/index";
 
 export type AiTier = "strong" | "fast";
-export const AI_TASKS = ["quiz_generate", "quiz_validate", "quiz_from_questions", "distractors", "slide_plan", "slide_write", "slide_regenerate", "tutor", "chat_answer"] as const;
+export const AI_TASKS = ["quiz_generate", "quiz_validate", "quiz_from_questions", "slide_plan", "slide_write", "slide_regenerate", "tutor", "writing"] as const;
 export type AiTask = (typeof AI_TASKS)[number];
 
 /** USD per 1M tokens (input, output) from Anthropic's published price list; used for cost tracking only. */
@@ -31,6 +31,8 @@ export type StructuredRequest<T> = {
   maxTokens?: number;
   effort?: "low" | "medium" | "high";
   meta?: { userId?: string; workspaceId?: string; jobId?: string };
+  /** interactive = a person is waiting on an HTTP request: short timeout, one retry */
+  interactive?: boolean;
 };
 
 type ModelConfigRow = { task: string; model: string; effort: string | null; max_tokens: number; enabled: boolean };
@@ -74,7 +76,9 @@ export class AiClient {
     let inputTokens = 0;
     let outputTokens = 0;
     try {
-      const usesFallbacks = !this.cfg.AI_BASE_URL && /^claude-(opus|sonnet|fable)/.test(model);
+      // server-side refusal fallback is only requested for the current model generation
+      const usesFallbacks = !this.cfg.AI_BASE_URL && /^claude-(opus|sonnet|fable)-5/.test(model);
+      const requestOptions = req.interactive ? { timeout: this.cfg.AI_INTERACTIVE_TIMEOUT_MS, maxRetries: 1 } : undefined;
       const response = await this.client.beta.messages.parse({
         model,
         max_tokens: maxTokens ?? req.maxTokens ?? 16000,
@@ -83,7 +87,7 @@ export class AiClient {
         output_config: { effort: (effort as "low" | "medium" | "high" | undefined) ?? req.effort ?? "medium", format: betaZodOutputFormat(req.schema) },
         // Server-side refusal fallback (opt-in); not sent through custom gateways.
         ...(usesFallbacks ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
-      });
+      }, requestOptions);
       inputTokens = response.usage.input_tokens;
       outputTokens = response.usage.output_tokens;
       if (response.stop_reason === "refusal") throw new AiError("refusal", false);

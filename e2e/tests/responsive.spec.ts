@@ -6,8 +6,10 @@ import { asTelegramUser, noHorizontalScroll } from "./telegram-mock";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(here, "../../docs/evidence/e2e");
 
-const ROUTES = ["/", "/create", "/library", "/quiz/new", "/quizzes", "/cards", "/mistakes", "/plans", "/plans/new", "/tutor", "/games/matching", "/groups", "/workspaces/new", "/profile", "/help", "/decks", "/decks/new", "/billing", "/support", "/profile/data"];
+const ROUTES = ["/", "/create", "/library", "/quiz/new", "/quizzes", "/cards", "/mistakes", "/plans", "/plans/new", "/tutor", "/games/matching", "/groups", "/workspaces/new", "/profile", "/help", "/decks", "/decks/new", "/billing", "/support", "/profile/data", "/writing"];
 const WIDTHS = [320, 360, 390, 430, 1024, 1440];
+
+test.setTimeout(360_000);
 
 test("every main screen fits 320–1440 px without horizontal scrolling, in light and dark themes, with safe-area insets", async ({ browser }) => {
   const failures: string[] = [];

@@ -30,7 +30,22 @@ export function errorMessage(e: unknown, t: (k: MessageKey, v?: Record<string, s
     case "initdata_invalid":
     case "unauthorized":
       return t("common.openInTelegramHint");
-    default:
-      return t("common.error");
+    case "quiz_too_many_questions":
+      return t("errors.tooManyQuestions", { max: Number(d.max ?? 0) });
+    case "daily_ai_limit":
+      return t("errors.dailyAiLimit", { limit: Number(d.limit ?? 0) });
+    case "file_too_large_for_plan":
+      return t("errors.fileTooLargeForPlan", { max: Number(d.maxMb ?? 0) });
+    case "ai_rate_limited":
+    case "ai_timeout":
+    case "ai_provider_error":
+      return t("errors.aiBusy");
+    case "rate_limited":
+      return t("errors.rateLimited");
+    default: {
+      const known = ["admin_reauth_required", "ai_required", "ai_disabled", "payments_disabled", "plan_unavailable", "telegram_not_configured", "last_owner", "assignee_not_member",
+        "already_submitted", "exam_date_in_past", "confirmation_required", "not_enough_values", "web_search_not_enabled", "payer_unknown", "job_not_failed", "link_expired", "not_enough_text"];
+      return known.includes(e.code) ? t(`errors.${e.code}` as MessageKey) : t("common.error");
+    }
   }
 }

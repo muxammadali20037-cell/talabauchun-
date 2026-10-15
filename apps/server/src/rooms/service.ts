@@ -10,7 +10,7 @@ import { describeLocator } from "../search/retrieve";
 import { startAppLink } from "../telegram/links";
 
 export type RoomRow = {
-  id: string; code: string; title: string; quiz_version_id: string; workspace_id: string; host_id: string; co_host_id: string | null;
+  id: string; code: string; title: string; quiz_version_id: string; workspace_id: string; host_id: string; co_host_id: string | null; assignment_due_at: Date | null;
   status: "lobby" | "running" | "paused" | "finished" | "cancelled"; phase: "question" | "reveal" | null; settings: RoomSettings;
   question_ids: string[]; current_index: number; question_started_at: Date | null; deadline_at: Date | null; paused_remaining_ms: number | null;
   state_version: string; expires_at: Date;
@@ -54,8 +54,13 @@ export async function createRoom(deps: Deps, user: UserRow, quizId: string, rawS
           await tx`update rooms set team_count = ${settings.teamCount} where id = ${room!.id}`;
         }
         await event(tx, room!.id, "created", user.id, { quizId });
-        const invite = await issueInvite(tx, deps, room!.id, user.id);
-        return { roomId: room!.id, code: room!.code, ...invite };
+        if (settings.mode === "async") {
+          // self-paced assignment: open at once until the deadline; the invite and the room live as long
+          await tx`update rooms set status = 'running', started_at = now(), assignment_due_at = now() + make_interval(hours => ${settings.deadlineHours}),
+            expires_at = greatest(expires_at, now() + make_interval(hours => ${settings.deadlineHours + 24})) where id = ${room!.id}`;
+        }
+        const invite = await issueInvite(tx, deps, room!.id, user.id, settings.mode === "async" ? settings.deadlineHours : undefined);
+        return { roomId: room!.id, code: room!.code, mode: settings.mode, ...invite };
       });
     } catch (e) {
       if ((e as { code?: string }).code === "23505") continue; // code collision, retry
@@ -65,9 +70,9 @@ export async function createRoom(deps: Deps, user: UserRow, quizId: string, rawS
   throw new AppError("room_code_exhausted", 500);
 }
 
-async function issueInvite(tx: Tx, deps: Deps, roomId: string, userId: string) {
+async function issueInvite(tx: Tx, deps: Deps, roomId: string, userId: string, ttlHours = INVITE_TTL_HOURS) {
   const token = randomToken(16); // 22 chars base64url
-  const expiresAt = new Date(Date.now() + INVITE_TTL_HOURS * 3600_000);
+  const expiresAt = new Date(Date.now() + ttlHours * 3600_000);
   await tx`insert into invitations (kind, target_id, role, token_hash, created_by, expires_at) values ('room', ${roomId}, 'participant', ${sha256(token)}, ${userId}, ${expiresAt})`;
   const startParam = `r${token}`;
   return { inviteToken: token, startParam, inviteLink: startAppLink(deps.cfg, startParam), inviteExpiresAt: expiresAt };
@@ -79,7 +84,8 @@ export async function rotateInvite(deps: Deps, user: UserRow, roomId: string) {
   return deps.sql.begin(async (tx) => {
     await tx`update invitations set revoked_at = now() where kind = 'room' and target_id = ${roomId} and revoked_at is null`;
     await event(tx, roomId, "invite_rotated", user.id);
-    return issueInvite(tx, deps, roomId, user.id);
+    const ttl = room.settings.mode === "async" && room.assignment_due_at ? Math.max(1, Math.ceil((room.assignment_due_at.getTime() - Date.now()) / 3600_000)) : undefined;
+    return issueInvite(tx, deps, roomId, user.id, ttl);
   });
 }
 
@@ -127,7 +133,7 @@ export async function joinRoom(deps: Deps, user: UserRow, p: { inviteToken?: str
   });
   await event(deps.sql, roomId, "joined", user.id);
   await notifyRoom(deps.sql, roomId);
-  return { roomId };
+  return { roomId, mode: room.settings.mode };
 }
 
 export async function requireMember(sql: Sql | Tx, roomId: string, userId: string) {
@@ -144,6 +150,8 @@ function requireHost(room: RoomRow, user: Pick<UserRow, "id">) {
 export async function hostAction(deps: Deps, user: Pick<UserRow, "id">, roomId: string, action: "start" | "next" | "reveal" | "pause" | "resume" | "finish") {
   const room = await getRoom(deps.sql, roomId);
   requireHost(room, user);
+  // a self-paced assignment has no live question flow: it can only be closed early
+  if (room.settings.mode === "async" && action !== "finish") throw new AppError("not_for_assignment", 409);
   const t = room.settings.timePerQuestionSec;
   let changed: { id: string }[] = [];
   switch (action) {
@@ -180,6 +188,8 @@ export async function hostAction(deps: Deps, user: Pick<UserRow, "id">, roomId: 
     case "finish":
       changed = await deps.sql`update rooms set status = 'finished', phase = 'reveal', finished_at = now(), deadline_at = null, state_version = state_version + 1
         where id = ${roomId} and status in ('lobby','running','paused') returning id`;
+      // closing an assignment early also ends attempts still in progress
+      if (changed.length && room.settings.mode === "async") await deps.sql`update attempts set status = 'finished', finished_at = now() where room_id = ${roomId} and status = 'active'`;
       break;
   }
   if (!changed.length) return { changed: false };
@@ -384,7 +394,7 @@ export function viewFor(shared: SharedRoomState, userId: string, secret: string,
             text: q.text,
             type: q.type,
             multiple: q.type === "multiple",
-            options: (q.type === "true_false" ? q.optionIds : optionOrder(room.id, userId, q.id, q.optionIds, secret)).map((id) => ({ id, text: q.options.get(id)! })),
+            options: (q.type === "true_false" || room.settings.shuffleOptions === false ? q.optionIds : optionOrder(room.id, userId, q.id, q.optionIds, secret)).map((id) => ({ id, text: q.options.get(id)! })),
           }
         : null,
     myAnswer: mine && q ? { questionId: q.id, optionIds: mine.optionIds, acceptedAt: mine.at } : null,

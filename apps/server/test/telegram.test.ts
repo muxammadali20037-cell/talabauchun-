@@ -5,7 +5,7 @@ import { buildApp } from "../src/http/app";
 import { signInitData, validateInitData } from "../src/auth/init-data";
 import { TelegramApi } from "../src/telegram/api";
 import { OutboxSender, enqueueMessage } from "../src/telegram/outbox";
-import { tickGroupRuns } from "../src/group/native-quiz";
+import { pollQuestion, tickGroupRuns } from "../src/group/native-quiz";
 import { createDocumentFromFile } from "../src/ingest/documents";
 import { approveQuestions, createQuiz, getQuizForEditor, publishQuiz } from "../src/quiz/service";
 import { createTestDeps, makeUser, TEST_BOT_TOKEN } from "./helpers/deps";
@@ -198,6 +198,13 @@ describe("native quiz in a Telegram group (acceptance 6)", () => {
     return { runId, user, quizId };
   }
 
+  it("never cuts a long poll question to make room for the counter", () => {
+    const long = "S".repeat(294) + "oʻrin?";
+    expect(long.length).toBeLessThanOrEqual(300);
+    expect(pollQuestion(long, 2, 10)).toBe(long);
+    expect(pollQuestion("Qisqa savol?", 2, 10)).toBe("3/10. Qisqa savol?");
+  });
+
   it("sends real quiz polls, scores only real non-anonymous poll_answer events", async () => {
     const groupId = -100777;
     const { runId } = await linkAndRun(false, 720001, groupId);
@@ -209,6 +216,8 @@ describe("native quiz in a Telegram group (acceptance 6)", () => {
       expect(poll.params).toMatchObject({ chat_id: String(groupId), type: "quiz", is_anonymous: false, open_period: 10 });
       expect((poll.params.options as unknown[]).length).toBe(4);
       expect((poll.params.correct_option_ids as number[]).length).toBe(1);
+      expect(poll.params.correct_option_id).toBe((poll.params.correct_option_ids as number[])[0]);
+      expect(String(poll.params.question)).toMatch(new RegExp(`^${i + 1}/4\\. `));
       expect(String(poll.params.explanation ?? "").length).toBeLessThanOrEqual(200);
       const [tp] = await deps.sql<{ poll_id: string; correct_indices: number[] }[]>`select poll_id, correct_indices from telegram_polls where run_id = ${runId} order by sent_at desc limit 1`;
       const correct = tp!.correct_indices[0]!;

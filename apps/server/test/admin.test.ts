@@ -28,8 +28,8 @@ afterAll(async () => {
   await cleanup();
 });
 
-async function login(id: number, first_name = "U") {
-  const initData = signInitData({ auth_date: String(Math.floor(Date.now() / 1000)), query_id: "AAH" + id, user: JSON.stringify({ id, first_name, language_code: "uz" }) }, TEST_BOT_TOKEN);
+async function login(id: number, first_name = "U", ageSec = 0) {
+  const initData = signInitData({ auth_date: String(Math.floor(Date.now() / 1000) - ageSec), query_id: "AAH" + id, user: JSON.stringify({ id, first_name, language_code: "uz" }) }, TEST_BOT_TOKEN);
   const res = await app.inject({ method: "POST", url: "/api/auth/telegram", payload: { initData } });
   return { token: res.json().token as string, userId: res.json().user.id as string };
 }
@@ -53,11 +53,12 @@ describe("admin access (acceptance 14/18 for operators)", () => {
     expect(m.json().targets).toBeNull();
     expect(m.json().measured.retention).toBeInstanceOf(Array);
 
-    // an old admin session can still read but not change anything
-    await deps.sql`update sessions set created_at = now() - interval '2 hours' where user_id = ${admin.userId}`;
-    expect((await app.inject({ method: "GET", url: "/api/admin/flags", headers: auth(admin.token) })).statusCode).toBe(200);
-    const stale = await app.inject({ method: "PUT", url: "/api/admin/flags/targets", headers: auth(admin.token), payload: { enabled: true, data: { d7RetentionPct: 25 } } });
-    expect(stale.statusCode).toBe(401);
+    // a session from initData signed 30 minutes ago (still accepted for sign-in) can read but not change anything,
+    // and signing in again with that same initData does not make it fresh
+    const old = await login(ADMIN_TG, "Admin", 30 * 60);
+    expect((await app.inject({ method: "GET", url: "/api/admin/flags", headers: auth(old.token) })).statusCode).toBe(200);
+    const stale = await app.inject({ method: "PUT", url: "/api/admin/flags/targets", headers: auth(old.token), payload: { enabled: true, data: { d7RetentionPct: 25 } } });
+    expect(stale.statusCode).toBe(403);
     expect(stale.json().error.code).toBe("admin_reauth_required");
 
     const fresh = await login(ADMIN_TG, "Admin");
