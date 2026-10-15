@@ -1,0 +1,18 @@
+{
+  "name": "talaba-ai",
+  "private": true,
+  "version": "0.1.0",
+  "description": "TALABA AI — Telegram bot + Mini App: materialni yuklang, tushuning, tayyorlang va birga o'rganing.",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev:server": "pnpm --filter @talaba/server dev",
+    "dev:worker": "pnpm --filter @talaba/server dev:worker",
+    "dev:miniapp": "pnpm --filter @talaba/miniapp dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "migrate": "pnpm --filter @talaba/server migrate"
+  }
+}
