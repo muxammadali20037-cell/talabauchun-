@@ -30,20 +30,24 @@ export function Create() {
           </div>
           <span className="chev" aria-hidden>›</span>
         </Link>
-        <div className="card flat row" aria-disabled="true">
-          <span aria-hidden style={{ width: 44, height: 44, display: "grid", placeItems: "center", fontSize: 22 }}>🗒</span>
-          <div className="grow">
-            <strong>{t("create.summary")}</strong>
-            <p className="caption">{t("create.comingStage2")}</p>
-          </div>
-        </div>
-        <div className="card flat row" aria-disabled="true">
-          <span aria-hidden style={{ width: 44, height: 44, display: "grid", placeItems: "center", fontSize: 22 }}>🃏</span>
-          <div className="grow">
-            <strong>{t("create.flashcards")}</strong>
-            <p className="caption">{t("create.comingStage2")}</p>
-          </div>
-        </div>
+        {(
+          [
+            ["/cards", "🃏", "create.flashcards", "create.flashcardsHint"],
+            ["/tutor", "💡", "tutor.title", "create.tutorHint"],
+            ["/plans/new", "🗓", "plans.new", "create.planHint"],
+            ["/games/matching", "🧩", "games.matching", "create.matchingHint"],
+            ["/library", "🗒", "create.summary", "create.summaryHint"],
+          ] as const
+        ).map(([to, ico, title, hint]) => (
+          <Link key={to} to={to} className="card card-link row">
+            <span aria-hidden style={{ width: 44, height: 44, display: "grid", placeItems: "center", fontSize: 22 }}>{ico}</span>
+            <div className="grow">
+              <strong>{t(title)}</strong>
+              <p className="caption">{t(hint)}</p>
+            </div>
+            <span className="chev" aria-hidden>›</span>
+          </Link>
+        ))}
       </div>
     </Screen>
   );

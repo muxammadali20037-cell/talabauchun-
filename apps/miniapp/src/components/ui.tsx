@@ -132,6 +132,7 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
 }
 
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -149,7 +150,10 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
     <div className="overlay" onClick={onClose}>
       <div className="sheet" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-handle" aria-hidden />
-        <h2 style={{ marginBottom: 16 }}>{title}</h2>
+        <div className="row between" style={{ marginBottom: 16, alignItems: "flex-start" }}>
+          <h2 className="break">{title}</h2>
+          <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label={t("common.close")}>✕</button>
+        </div>
         {children}
       </div>
     </div>

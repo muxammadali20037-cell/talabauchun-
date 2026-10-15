@@ -5,7 +5,7 @@ import { requireObjectRole } from "../access/policy";
 import { UNTRUSTED_DATA_RULES } from "../ai/client";
 import { describeLocator, type RetrievedChunk } from "../search/retrieve";
 import { contentStems, locateQuote, splitKeep } from "../quiz/text";
-import { findDefinitions } from "../quiz/terms";
+import { capitalize, findDefinitions } from "../quiz/terms";
 
 export type SummarySection = { title: string; where: string; points: { text: string; quote: string | null; verified: boolean; aiWritten: boolean }[]; terms: { term: string; definition: string }[] };
 
@@ -34,9 +34,14 @@ export async function summarizeDocument(deps: Deps, user: UserRow, documentId: s
   for (const g of groups) {
     if (!g.chunks.length) continue;
     const scored: { s: string; score: number; chunk: (typeof g.chunks)[number] }[] = [];
+    // chunks overlap, so the same sentence can appear twice
+    const seen = new Set<string>();
     for (const c of g.chunks) {
       for (const s of splitKeep(c.text)) {
         if (s.length < 40 || s.length > 320) continue;
+        const key = s.toLowerCase().replace(/\s+/g, " ").trim();
+        if (seen.has(key)) continue;
+        seen.add(key);
         const st = contentStems(s);
         const score = st.reduce((acc, t) => acc + Math.log(1 + (df.get(t) ?? 0)), 0) / Math.sqrt(st.length || 1) + (/\d/.test(s) ? 0.5 : 0) + (/[—–-]\s*bu\b|deb ataladi/i.test(s) ? 1 : 0);
         scored.push({ s, score, chunk: c });
@@ -49,7 +54,7 @@ export async function summarizeDocument(deps: Deps, user: UserRow, documentId: s
       title: g.title,
       where: describeLocator(first.locator, user.language),
       points: picked.map((p) => ({ text: p.s, quote: p.s, verified: true, aiWritten: false })),
-      terms: defs.filter((d) => g.chunks.some((c) => c.text.includes(d.sentence))).map((d) => ({ term: d.term, definition: d.definition })),
+      terms: defs.filter((d) => g.chunks.some((c) => c.text.includes(d.sentence))).map((d) => ({ term: capitalize(d.term), definition: d.definition })),
     });
   }
   if (opts.useAi && deps.ai && out.length) {

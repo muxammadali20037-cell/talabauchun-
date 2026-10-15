@@ -64,6 +64,29 @@ export function Home() {
       </section>
 
       <section className="stack">
+        <h2 className="section-title">{t("home.study")}</h2>
+        <div className="grid-2 wide-4">
+          <Link className="tile" to="/cards">
+            <span className="tile-icon" aria-hidden>🃏</span>
+            <strong>{t("cards.title")}</strong>
+            <span className="caption">{recent.data?.dueCards ? t("home.dueCards", { n: recent.data.dueCards }) : t("home.nothingToReview")}</span>
+          </Link>
+          <Link className="tile" to="/mistakes">
+            <span className="tile-icon" aria-hidden>🔁</span>
+            <strong>{t("mistakes.title")}</strong>
+          </Link>
+          <Link className="tile" to="/plans">
+            <span className="tile-icon" aria-hidden>🗓</span>
+            <strong>{t("plans.title")}</strong>
+          </Link>
+          <Link className="tile" to="/tutor">
+            <span className="tile-icon" aria-hidden>💡</span>
+            <strong>{t("tutor.title")}</strong>
+          </Link>
+        </div>
+      </section>
+
+      <section className="stack">
         <h2 className="section-title">{t("home.upcoming")}</h2>
         {recent.data?.deadlines.length ? (
           <div className="list">

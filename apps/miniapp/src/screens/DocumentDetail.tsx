@@ -1,4 +1,5 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { MoveToWorkspace } from "./workspaces/Workspaces";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useT } from "../lib/i18n";
@@ -11,6 +12,8 @@ type Detail = DocSummary & {
   pages: { page_index: number; page_label: string | null; kind: string; heading: string | null; method: string; ocr_confidence: number | null; status: string; chars: number }[];
   sections: { id: string; title: string; level: number; start_page: number; end_page: number }[];
   versions: { id: string; version_no: number; status: string; created_at: string }[];
+  hasTables: boolean;
+  role: "owner" | "editor" | "viewer";
 };
 
 export function DocumentDetail() {
@@ -71,6 +74,14 @@ export function DocumentDetail() {
               <Link className="btn btn-secondary" to={`/decks/new?doc=${d.id}`}>📊 {t("deck.create")}</Link>
             </div>
           )}
+          {(v?.status === "ready" || v?.status === "partial") && (
+            <div className="row wrap">
+              <Link className="btn btn-ghost btn-sm" to={`/library/${d.id}/summary`}>🗒 {t("create.summary")}</Link>
+              <Link className="btn btn-ghost btn-sm" to={`/tutor?doc=${d.id}`}>💡 {t("tutor.askAbout")}</Link>
+              <Link className="btn btn-ghost btn-sm" to={`/games/matching?doc=${d.id}`}>🧩 {t("games.matching")}</Link>
+              {d.hasTables && <Link className="btn btn-ghost btn-sm" to={`/library/${d.id}/stats`}>📈 {t("stats.title")}</Link>}
+            </div>
+          )}
         </div>
 
         {d.sections.length > 0 && (
@@ -123,7 +134,12 @@ export function DocumentDetail() {
             ))}
           </div>
         </section>
-        <button className="btn btn-danger" onClick={del}>{t("common.delete")}</button>
+        {d.role === "owner" && (
+          <div className="row wrap">
+            <MoveToWorkspace kind="document" id={d.id} onDone={() => doc.refetch()} />
+            <button className="btn btn-danger" onClick={del}>{t("common.delete")}</button>
+          </div>
+        )}
       </div>
     </Screen>
   );

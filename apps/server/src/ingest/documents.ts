@@ -166,7 +166,7 @@ export async function listDocuments(deps: Deps, user: UserRow, opts: { workspace
 }
 
 export async function getDocument(deps: Deps, user: UserRow, id: string) {
-  await requireObjectRole(deps.sql, user, "document", id, "viewer");
+  const { role } = await requireObjectRole(deps.sql, user, "document", id, "viewer");
   const [row] = await deps.sql.unsafe<SummaryRow[]>(`${SUMMARY_SQL} where d.id = $1`, [id]);
   const summary = toSummary(row!);
   const versionId = summary.version?.id;
@@ -181,7 +181,10 @@ export async function getDocument(deps: Deps, user: UserRow, id: string) {
     : [];
   const versions = await deps.sql<{ id: string; version_no: number; status: string; created_at: Date }[]>`
     select id, version_no, status, created_at from document_versions where document_id = ${id} order by version_no desc`;
-  return { ...summary, pages, sections, versions };
+  const [tables] = versionId
+    ? await deps.sql<{ n: number }[]>`select (case when jsonb_typeof(metadata->'tables') = 'array' then jsonb_array_length(metadata->'tables') else 0 end)::int as n from document_versions where id = ${versionId}`
+    : [];
+  return { ...summary, role, pages, sections, versions, hasTables: (tables?.n ?? 0) > 0 };
 }
 
 export async function getPageText(deps: Deps, user: UserRow, documentId: string, pageIndex: number) {

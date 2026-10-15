@@ -17,7 +17,7 @@ export function QuizNew() {
   const me = useMe();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const [method, setMethod] = useState<Method>("from_source");
+  const [method, setMethod] = useState<Method>(params.get("method") === "from_mistakes" ? "from_mistakes" : "from_source");
   const [docIds, setDocIds] = useState<string[]>(params.get("doc") ? [params.get("doc")!] : []);
   const [sectionIds, setSectionIds] = useState<string[]>([]);
   const [count, setCount] = useState(10);

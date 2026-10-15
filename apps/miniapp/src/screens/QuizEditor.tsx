@@ -8,7 +8,8 @@ import { useT } from "../lib/i18n";
 import { errorMessage } from "../lib/errors";
 import { useJob } from "../lib/jobs";
 import { haptic, openTelegramLink } from "../lib/telegram";
-import { Badge, Banner, ErrorState, Field, JobProgress, Loading, SaveState, Screen, Sheet, Toggle, toast } from "../components/ui";
+import { MoveToWorkspace } from "./workspaces/Workspaces";
+import { Badge, Banner, ErrorState, Field, JobProgress, Loading, SaveState, Screen, Segmented, Sheet, Toggle, toast } from "../components/ui";
 
 type Check = { rule: string; result: "pass" | "warn" | "fail"; checker: string; detail: Record<string, unknown> };
 type Option = { id: string; stableId: string; text: string; correct: boolean; whyWrong: string | null };
@@ -109,6 +110,15 @@ export function QuizEditor() {
             )}
             <button className="btn btn-ghost btn-sm" onClick={() => setEditing("new")}>+ {t("quiz.addQuestion")}</button>
           </div>
+          {qs.length > 0 && (
+            <div className="row wrap">
+              <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => act(async () => {
+                const r = await api.post<{ created: number }>(`/api/flashcards/from-quiz/${id}`);
+                toast(t("cards.created", { n: r.created }));
+              })}>🃏 {t("cards.fromQuiz")}</button>
+              {quiz.role === "owner" && <MoveToWorkspace kind="quiz" id={id!} onDone={reload} />}
+            </div>
+          )}
           <p className="caption">{t("quiz.reviewPolicy")}</p>
         </div>
 
@@ -316,6 +326,7 @@ function PlaySheet({ quizId, questions, onClose }: { quizId: string; questions: 
   const [speed, setSpeed] = useState(false);
   const [board, setBoard] = useState(true);
   const [anon, setAnon] = useState(false);
+  const [teams, setTeams] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [group, setGroup] = useState<{ link: string | null; questions: number; skipped: number } | null>(null);
@@ -348,8 +359,15 @@ function PlaySheet({ quizId, questions, onClose }: { quizId: string; questions: 
           <Field label={t("quiz.timePerQuestion")}>{(id) => <input id={id} className="input" type="number" min={5} max={300} value={time} onChange={(e) => setTime(Number(e.target.value))} />}</Field>
           <Toggle label={t("room.speedBonusToggle")} checked={speed} onChange={setSpeed} hint={speed ? t("room.speedBonusRule", { max: 50 }) : t("room.noSpeedBonus")} />
           <Toggle label={t("room.leaderboard")} checked={board} onChange={setBoard} hint={board ? t("room.leaderboardVisible") : t("room.leaderboardHidden")} />
+          <Segmented label={t("room.battle")} value={String(teams)} onChange={(v) => setTeams(Number(v))} options={[
+            { value: "0", label: t("room.individual") },
+            { value: "2", label: t("room.teamsN", { n: 2 }) },
+            { value: "3", label: t("room.teamsN", { n: 3 }) },
+            { value: "4", label: t("room.teamsN", { n: 4 }) },
+          ]} />
+          {teams > 0 && <p className="caption">{t("room.battleHint")}</p>}
           <button className="btn btn-primary" disabled={busy} onClick={() => run(async () => {
-            const r = await api.post<{ roomId: string; inviteLink: string | null; inviteToken: string; inviteExpiresAt: string }>("/api/rooms", { quizId, settings: { timePerQuestionSec: time, speedBonus: speed, showLeaderboard: board } });
+            const r = await api.post<{ roomId: string; inviteLink: string | null; inviteToken: string; inviteExpiresAt: string }>("/api/rooms", { quizId, settings: { timePerQuestionSec: time, speedBonus: speed, showLeaderboard: board, ...(teams ? { mode: "teams", teamCount: teams } : {}) } });
             // the invite token is shown once (only its hash is stored server-side)
             sessionStorage.setItem(`room.invite.${r.roomId}`, JSON.stringify(r));
             navigate(`/room/${r.roomId}`);

@@ -51,7 +51,33 @@ function Rules({ s }: { s: RoomStateView }) {
       <li>{s.rules.speedBonusMax ? t("room.speedBonusRule", { max: s.rules.speedBonusMax }) : t("room.noSpeedBonus")}</li>
       <li>{s.rules.showLeaderboard ? t("room.leaderboardVisible") : t("room.leaderboardHidden")}</li>
       <li>{t("room.timeRule", { sec: s.rules.timePerQuestionSec })}</li>
+      {s.rules.teamScoring === "average" && <li>{t("room.teamRule")}</li>}
     </ul>
+  );
+}
+
+/** Quiz Battle standings: team score is the average of its members' points, so team size does not decide the winner. */
+function TeamBoard({ s }: { s: RoomStateView }) {
+  const t = useT();
+  if (!s.teams) return null;
+  const sorted = [...s.teams].sort((a, b) => b.averagePoints - a.averagePoints);
+  const mine = s.teams.find((x) => x.id === s.myTeamId);
+  return (
+    <section className="card stack" aria-label={t("room.teams")}>
+      <div className="row between wrap">
+        <h3>{t("room.teams")}</h3>
+        {mine && <span className="badge badge-neutral"><span className="team-dot" style={{ background: mine.color }} aria-hidden /> {t("room.yourTeam", { name: mine.name })}</span>}
+      </div>
+      {sorted.map((team, i) => (
+        <div key={team.id} className="lb-row">
+          <span className="lb-rank">{i > 0 && sorted[i - 1]!.averagePoints === team.averagePoints ? "=" : i + 1}</span>
+          <span className="team-dot" style={{ background: team.color }} aria-hidden />
+          <span className="grow">{t("room.teamName", { name: team.name })} · <span className="caption">{t("room.membersN", { n: team.members })}</span></span>
+          <strong>{team.averagePoints}</strong>
+        </div>
+      ))}
+      <p className="caption">{t("room.teamRule")}</p>
+    </section>
   );
 }
 
@@ -96,6 +122,7 @@ function Lobby({ s, roomId }: { s: RoomStateView; roomId: string }) {
         <h3>{t("room.rulesTitle")}</h3>
         <Rules s={s} />
       </section>
+      <TeamBoard s={s} />
       <section className="stack">
         <h2 className="section-title">{t("room.participants", { n: others.length })}</h2>
         <div className="row wrap">
@@ -155,6 +182,7 @@ function QuestionView({ s, remainingMs, pending, onAnswer }: { s: RoomStateView;
           <div><ReportButton questionId={q.id} /></div>
         </div>
       )}
+      {reveal && <TeamBoard s={s} />}
     </div>
   );
 }
@@ -192,6 +220,7 @@ function Finished({ s, roomId }: { s: RoomStateView; roomId: string }) {
           <p>{t("room.myScoreFull", { points: s.myScore.points, correct: s.myScore.correct, total: s.question?.total ?? s.myScore.answered })}</p>
         </div>
       )}
+      <TeamBoard s={s} />
       {s.leaderboard ? (
         <section className="card stack">
           <h2>{t("room.leaderboard")}</h2>

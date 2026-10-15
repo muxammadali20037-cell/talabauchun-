@@ -21,6 +21,18 @@ const Room = lazy(() => import("./screens/Room").then((m) => ({ default: m.Room 
 const Groups = lazy(() => import("./screens/Groups").then((m) => ({ default: m.Groups })));
 const Profile = lazy(() => import("./screens/Profile").then((m) => ({ default: m.Profile })));
 const InfoPage = lazy(() => import("./screens/InfoPage").then((m) => ({ default: m.InfoPage })));
+const Cards = lazy(() => import("./screens/study/Cards").then((m) => ({ default: m.Cards })));
+const Mistakes = lazy(() => import("./screens/study/Mistakes").then((m) => ({ default: m.Mistakes })));
+const Plans = lazy(() => import("./screens/study/Plans").then((m) => ({ default: m.Plans })));
+const PlanNew = lazy(() => import("./screens/study/Plans").then((m) => ({ default: m.PlanNew })));
+const PlanDetail = lazy(() => import("./screens/study/Plans").then((m) => ({ default: m.PlanDetail })));
+const Tutor = lazy(() => import("./screens/study/Tutor").then((m) => ({ default: m.Tutor })));
+const Summary = lazy(() => import("./screens/study/Summary").then((m) => ({ default: m.Summary })));
+const Stats = lazy(() => import("./screens/study/Stats").then((m) => ({ default: m.Stats })));
+const Matching = lazy(() => import("./screens/study/Matching").then((m) => ({ default: m.Matching })));
+const WorkspaceNew = lazy(() => import("./screens/workspaces/Workspaces").then((m) => ({ default: m.WorkspaceNew })));
+const WorkspaceJoin = lazy(() => import("./screens/workspaces/Workspaces").then((m) => ({ default: m.WorkspaceJoin })));
+const WorkspaceDetail = lazy(() => import("./screens/workspaces/Workspaces").then((m) => ({ default: m.WorkspaceDetail })));
 const DeckRoutes = lazy(() => import("./screens/decks/DeckRoutes").then((m) => ({ default: m.DeckRoutes })));
 
 export function App() {
@@ -30,12 +42,13 @@ export function App() {
   const location = useLocation();
   const handledStart = useRef(false);
 
-  // Invite links (t.me/<bot>?startapp=r<token>) open straight into the invited room; onboarding never blocks that path.
+  // Invite links (t.me/<bot>?startapp=r<token> for rooms, w<token> for group workspaces) open straight into the invite; onboarding never blocks that path.
   useEffect(() => {
     if (state.status !== "ready" || handledStart.current) return;
     handledStart.current = true;
     const sp = state.startParam;
     if (sp && sp.startsWith("r") && sp.length > 10) navigate(`/join/${sp.slice(1)}`, { replace: true });
+    else if (sp && sp.startsWith("w") && sp.length > 10) navigate(`/workspaces/join/${sp.slice(1)}`, { replace: true });
     else if (!state.me.user.onboarded && location.pathname === "/") navigate("/onboarding", { replace: true });
   }, [state, navigate, location.pathname]);
 
@@ -67,6 +80,18 @@ export function App() {
         <Route path="/join/:token" element={<Join />} />
         <Route path="/room/:id" element={<Room />} />
         <Route path="/groups" element={<Groups />} />
+        <Route path="/workspaces/new" element={<WorkspaceNew />} />
+        <Route path="/workspaces/join/:token" element={<WorkspaceJoin />} />
+        <Route path="/workspaces/:id" element={<WorkspaceDetail />} />
+        <Route path="/cards" element={<Cards />} />
+        <Route path="/mistakes" element={<Mistakes />} />
+        <Route path="/plans" element={<Plans />} />
+        <Route path="/plans/new" element={<PlanNew />} />
+        <Route path="/plans/:id" element={<PlanDetail />} />
+        <Route path="/tutor" element={<Tutor />} />
+        <Route path="/library/:id/summary" element={<Summary />} />
+        <Route path="/library/:id/stats" element={<Stats />} />
+        <Route path="/games/matching" element={<Matching />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/terms" element={<InfoPage kind="terms" />} />
         <Route path="/privacy" element={<InfoPage kind="privacy" />} />

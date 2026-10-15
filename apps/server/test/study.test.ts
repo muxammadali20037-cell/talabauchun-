@@ -153,6 +153,8 @@ describe("tutor and summaries (no AI configured)", () => {
     const inf = sum.sections.find((s: { title: string }) => s.title === "2-bob. Inflyatsiya");
     expect(inf.points.every((p: { verified: boolean; aiWritten: boolean }) => p.verified && !p.aiWritten)).toBe(true);
     expect(inf.terms.map((t: { term: string }) => t.term)).toContain("Inflyatsiya");
+    // overlapping chunks must not repeat a point
+    for (const sec of sum.sections as { points: { text: string }[] }[]) expect(new Set(sec.points.map((p) => p.text)).size).toBe(sec.points.length);
   });
 });
 
