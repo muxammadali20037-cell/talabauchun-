@@ -5,7 +5,7 @@ import { grantFreeCredits } from "../billing/credits";
 
 export type UserRow = {
   id: string;
-  telegram_id: string;
+  telegram_id: string | null;
   username: string | null;
   first_name: string;
   last_name: string | null;

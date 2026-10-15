@@ -5,16 +5,8 @@ import type { Config } from "../config";
 import type { Sql } from "../db/index";
 
 export type AiTier = "strong" | "fast";
-export type AiTask =
-  | "quiz_generate"
-  | "quiz_validate"
-  | "quiz_from_questions"
-  | "distractors"
-  | "slide_plan"
-  | "slide_write"
-  | "slide_regenerate"
-  | "tutor"
-  | "chat_answer";
+export const AI_TASKS = ["quiz_generate", "quiz_validate", "quiz_from_questions", "distractors", "slide_plan", "slide_write", "slide_regenerate", "tutor", "chat_answer"] as const;
+export type AiTask = (typeof AI_TASKS)[number];
 
 /** USD per 1M tokens (input, output) from Anthropic's published price list; used for cost tracking only. */
 const PRICES: Record<string, [number, number]> = {

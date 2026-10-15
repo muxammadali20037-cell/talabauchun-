@@ -1,3 +1,4 @@
+import { effectiveLimits } from "../billing/plans";
 import { CreateQuizRequest, QuestionEdit, QuizSettings, type Locator } from "@talaba/shared";
 import type { Deps } from "../deps";
 import type { UserRow } from "../auth/users";
@@ -12,14 +13,13 @@ import { insertCandidate, writeChecks } from "./store";
 import { contentStems, coverage } from "./text";
 import { deterministicChecks, nativePollCompatible, statusFromChecks, type Candidate, type Check } from "./validate";
 
-const MAX_FREE = 30;
-
 export async function estimateQuiz(deps: Deps, user: UserRow, req: Pick<CreateQuizRequest, "method"> & { settings?: Partial<QuizSettings>; useAi?: boolean; questionsCount?: number }) {
   const pricing = await loadPricing(deps.sql);
   const settings = QuizSettings.parse(req.settings ?? {});
   const ai = (req.useAi ?? true) && !!deps.ai;
   const count = req.questionsCount ?? settings.count;
-  return { credits: estimateCredits(pricing, { kind: "quiz", questions: count, ai }), balance: await getBalance(deps.sql, user.id), ai, aiAvailable: !!deps.ai, maxQuestions: MAX_FREE };
+  const limits = await effectiveLimits(deps.sql, user.id);
+  return { credits: estimateCredits(pricing, { kind: "quiz", questions: count, ai }), balance: await getBalance(deps.sql, user.id), ai, aiAvailable: !!deps.ai, maxQuestions: limits.maxQuestionsPerQuiz };
 }
 
 export async function createQuiz(deps: Deps, user: UserRow, raw: unknown, opts: { notifyChatId?: string | number | null; workspaceId?: string } = {}) {
@@ -29,7 +29,8 @@ export async function createQuiz(deps: Deps, user: UserRow, raw: unknown, opts: 
   const docIds = "documentIds" in req ? req.documentIds : [];
   for (const id of docIds) await requireObjectRole(deps.sql, user, "document", id, "viewer");
   const settings = QuizSettings.parse({ language: user.language, ...(req.settings ?? {}) });
-  if (settings.count > MAX_FREE) throw badRequest("quiz_too_many_questions", { max: MAX_FREE });
+  const { maxQuestionsPerQuiz } = await effectiveLimits(deps.sql, user.id);
+  if (settings.count > maxQuestionsPerQuiz) throw badRequest("quiz_too_many_questions", { max: maxQuestionsPerQuiz });
   const useAi = req.method !== "from_mistakes" && (req as { useAi?: boolean }).useAi !== false && !!deps.ai;
   const questionsCount =
     req.method === "from_qa" ? Math.max(1, req.qaText.split(/\n\s*\n/).length) : req.method === "from_questions" ? Math.max(1, req.questionsText.split("\n").filter((l) => l.trim()).length) : settings.count;

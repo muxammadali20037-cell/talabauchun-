@@ -98,6 +98,8 @@ export class FakeTelegram {
       }
       case "getChatMember":
         return { status: "member", user: { id: Number(p.user_id), is_bot: true, first_name: "bot" } };
+      case "createInvoiceLink":
+        return `https://t.me/$invoice_${this.seq++}`;
       case "getMe":
         return { id: 42, is_bot: true, first_name: "TALABA AI", username: "talaba_test_bot" };
       default:

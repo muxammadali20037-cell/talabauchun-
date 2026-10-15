@@ -6,7 +6,7 @@ import { createQuiz } from "../quiz/service";
 import { activeAttempt, answerAttempt, attemptResults, attemptState, finishAttempt, startAttempt, startMistakesAttempt } from "../quiz/practice";
 import { linkRunToChat, recordPollAnswer, recordPollState, startRun } from "../group/native-quiz";
 import { getBalance } from "../billing/credits";
-import { handlePreCheckout, handleSuccessfulPayment, sendPlanInvoice } from "../billing/stars";
+import { applyRefund, handlePreCheckout, handleSuccessfulPayment, sendPlanInvoice } from "../billing/stars";
 import { AppError } from "../lib/errors";
 import { TelegramError } from "./api";
 import { appButton, escapeHtml, longId, mainMenu, shortId, t, type InlineButton } from "./ui";
@@ -18,6 +18,7 @@ type TgMessage = {
   document?: { file_id: string; file_name?: string; file_size?: number; mime_type?: string };
   photo?: { file_id: string; file_size?: number; width: number; height: number }[];
   successful_payment?: Record<string, unknown>;
+  refunded_payment?: { currency: string; total_amount: number; invoice_payload: string; telegram_payment_charge_id: string };
 };
 type TgCallback = { id: string; from: TgUser; message?: TgMessage; data?: string };
 export type TgUpdate = {
@@ -82,7 +83,16 @@ export class Bot {
     if (m.chat.type !== "private") return;
     const user = await this.user(m.from, true);
     const lang = user.language;
-    if (m.successful_payment) return handleSuccessfulPayment(this.deps, user, m.successful_payment as never);
+    if (m.successful_payment) {
+      const r = await handleSuccessfulPayment(this.deps, user, m.successful_payment as never);
+      if (r.credited) await this.send(m.chat.id, t(lang, "bot.paymentReceived", { credits: r.credits ?? 0, balance: await getBalance(this.deps.sql, user.id) }));
+      else if (r.reason === "mismatch") await this.send(m.chat.id, t(lang, "bot.paymentProblem"));
+      return r;
+    }
+    if (m.refunded_payment) {
+      await applyRefund(this.deps, m.refunded_payment.telegram_payment_charge_id, null);
+      return this.send(m.chat.id, t(lang, "bot.paymentRefunded"));
+    }
     const text = (m.text ?? "").trim();
     if (text.startsWith("/")) return this.onCommand(user, m, text);
 

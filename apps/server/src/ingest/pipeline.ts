@@ -1,3 +1,4 @@
+import { effectiveLimits } from "../billing/plans";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -32,10 +33,7 @@ async function insertPage(deps: Deps, versionId: string, p: ExtractedPage) {
 }
 
 async function ocrBudgetLeft(deps: Deps, userId: string): Promise<number> {
-  const [plan] = await deps.sql<{ limits: { maxOcrPagesPerMonth?: number } }[]>`
-    select p.limits from plans p where p.code = coalesce((select e.plan_code from entitlements e where e.user_id = ${userId} and e.status = 'active'
-      and (e.ends_at is null or e.ends_at > now()) order by e.created_at desc limit 1), 'free')`;
-  const limit = plan?.limits?.maxOcrPagesPerMonth ?? 300;
+  const limit = (await effectiveLimits(deps.sql, userId)).maxOcrPagesPerMonth;
   const [used] = await deps.sql<{ n: string }[]>`
     select coalesce(sum(quantity), 0)::text as n from usage_events where user_id = ${userId} and kind = 'ocr_page' and created_at >= date_trunc('month', now())`;
   return Math.max(0, limit - Number(used?.n ?? 0));

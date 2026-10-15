@@ -10,6 +10,7 @@ export async function createSession(sql: Sql, cfg: Config, userId: string, metho
   await sql`
     insert into sessions (user_id, token_hash, auth_method, init_data_hash, expires_at)
     values (${userId}, ${sha256(token)}, ${method}, ${initDataHash ?? null}, ${expiresAt})`;
+  await sql`insert into user_activity (user_id, day) values (${userId}, current_date) on conflict do nothing`;
   return { token, expiresAt };
 }
 
@@ -21,6 +22,8 @@ export async function resolveSession(sql: Sql, token: string | undefined | null)
   if (!s) throw unauthorized("session expired");
   if (!s.last_seen_at || Date.now() - s.last_seen_at.getTime() > 60_000) {
     await sql`update sessions set last_seen_at = now() where id = ${s.id}`;
+    // one row per user per day: the basis for D1/D7/D30 retention (no content, no events)
+    await sql`insert into user_activity (user_id, day) values (${s.user_id}, current_date) on conflict do nothing`;
   }
   const user = await getUserById(sql, s.user_id);
   if (!user) throw unauthorized("user missing");

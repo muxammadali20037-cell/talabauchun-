@@ -5,7 +5,7 @@ import { getUserByTelegramId } from "../auth/users";
 import { randomToken } from "../lib/crypto";
 import { AppError } from "../lib/errors";
 
-type PlanRow = { code: string; title: Record<string, string>; price_stars: number; credits: number; period_days: number | null; limits: Record<string, unknown>; active: boolean; version: number };
+import type { PlanRow } from "./plans";
 
 /**
  * Telegram Stars (XTR) purchases of digital services, following
@@ -13,26 +13,47 @@ type PlanRow = { code: string; title: Record<string, string>; price_stars: numbe
  * empty provider_token, pre-checkout validation, and crediting ONLY after the
  * server receives `successful_payment` (never from a client-side "success").
  */
-export async function sendPlanInvoice(deps: Deps, user: UserRow, chatId: number | string, planCode: string) {
-  const lang = user.language;
-  if (!deps.cfg.PAYMENTS_ENABLED || !deps.tg) {
-    return deps.tg?.callWithRetry("sendMessage", { chat_id: chatId, text: translate(lang, "bot.paymentsDisabled") });
-  }
+/** Creates the pending payment row whose payload is echoed back by Telegram in pre_checkout and successful_payment. */
+async function createPendingPayment(deps: Deps, user: UserRow, planCode: string) {
   const [plan] = await deps.sql<PlanRow[]>`select * from plans where code = ${planCode} and active and price_stars > 0`;
   if (!plan) throw new AppError("plan_unavailable", 404);
   const payload = `p_${randomToken(18)}`;
-  await deps.sql`insert into payments (user_id, plan_code, plan_snapshot, invoice_payload, amount, credits)
-    values (${user.id}, ${plan.code}, ${deps.sql.json(plan as never)}, ${payload}, ${plan.price_stars}, ${plan.credits})`;
-  const title = plan.title[lang] ?? plan.title.uz ?? plan.code;
-  return deps.tg.callWithRetry("sendInvoice", {
-    chat_id: chatId,
-    title: title.slice(0, 32),
-    description: `${title}: ${plan.credits} kredit${plan.period_days ? ` / ${plan.period_days} kun` : ""}`.slice(0, 255),
+  const [pay] = await deps.sql<{ id: string }[]>`insert into payments (user_id, plan_code, plan_snapshot, invoice_payload, amount, credits)
+    values (${user.id}, ${plan.code}, ${deps.sql.json(plan as never)}, ${payload}, ${plan.price_stars}, ${plan.credits}) returning id`;
+  const lang = user.language;
+  const title = (plan.title[lang] ?? plan.title.uz ?? plan.code).slice(0, 32);
+  const invoice = {
+    title,
+    description: translate(lang, "billing.invoiceDescription", { title, credits: plan.credits, days: plan.period_days ?? 0 }).slice(0, 255),
     payload,
     provider_token: "",
     currency: "XTR",
-    prices: [{ label: title.slice(0, 32), amount: plan.price_stars }],
-  });
+    prices: [{ label: title, amount: plan.price_stars }],
+  };
+  return { paymentId: pay!.id, invoice };
+}
+
+export async function sendPlanInvoice(deps: Deps, user: UserRow, chatId: number | string, planCode: string) {
+  if (!deps.cfg.PAYMENTS_ENABLED || !deps.tg) {
+    return deps.tg?.callWithRetry("sendMessage", { chat_id: chatId, text: translate(user.language, "bot.paymentsDisabled") });
+  }
+  const { invoice } = await createPendingPayment(deps, user, planCode);
+  return deps.tg.callWithRetry("sendInvoice", { chat_id: chatId, ...invoice });
+}
+
+/** Invoice link for the Mini App (Telegram.WebApp.openInvoice). The client's "paid" callback is only a hint; credits come from successful_payment. */
+export async function createPlanInvoiceLink(deps: Deps, user: UserRow, planCode: string) {
+  if (!deps.cfg.PAYMENTS_ENABLED) throw new AppError("payments_disabled", 409);
+  if (!deps.tg) throw new AppError("telegram_not_configured", 503);
+  const { paymentId, invoice } = await createPendingPayment(deps, user, planCode);
+  const link = await deps.tg.callWithRetry<string>("createInvoiceLink", invoice);
+  return { paymentId, link };
+}
+
+/** The user closed the invoice: the pending payment can no longer be paid (pre-checkout will refuse it). */
+export async function cancelPendingPayment(deps: Deps, user: Pick<UserRow, "id">, paymentId: string) {
+  const r = await deps.sql`update payments set status = 'cancelled' where id = ${paymentId} and user_id = ${user.id} and status = 'pending' returning id`;
+  return { cancelled: r.length > 0 };
 }
 
 export async function handlePreCheckout(deps: Deps, q: { id: string; from: { id: number }; currency: string; total_amount: number; invoice_payload: string }) {

@@ -13,6 +13,12 @@ type Conn = { ws: WebSocket; userId: string; roomId: string; isHost: boolean; al
  */
 export class RoomHub {
   private rooms = new Map<string, Set<Conn>>();
+  /** open room sockets (for monitoring) */
+  connectionCount() {
+    let n = 0;
+    for (const set of this.rooms.values()) n += set.size;
+    return n;
+  }
   private pendingAnswers = new Map<string, NodeJS.Timeout>();
   private hostTimers = new Map<string, NodeJS.Timeout>();
   private ticker: NodeJS.Timeout | null = null;

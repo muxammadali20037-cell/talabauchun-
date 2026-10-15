@@ -26,6 +26,7 @@ import { registerTelegramWebhook } from "../telegram/webhook";
 import { registerDeckRoutes } from "./deck-routes";
 import { registerGroupRoutes } from "./group-routes";
 import { registerAdminRoutes } from "./admin-routes";
+import { registerMetrics } from "./metrics";
 import { registerStudyRoutes } from "./study-routes";
 import { registerBillingRoutes } from "./billing-routes";
 
@@ -97,6 +98,7 @@ export async function buildApp(deps: Deps, opts: { hub?: RoomHub; logger?: boole
   };
 
   // ── health ──
+  registerMetrics(app, deps, { connections: () => opts.hub?.connectionCount() ?? 0 });
   app.get("/healthz", async () => ({ ok: true }));
   app.get("/readyz", async (_req, reply) => {
     try {

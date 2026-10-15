@@ -156,6 +156,7 @@ export class JobWorker {
 
   /** Runs at most one job synchronously (used by tests). Returns false when nothing was runnable. */
   async runOnce(): Promise<boolean> {
+    await this.reapExhausted();
     const job = await this.claim();
     if (!job) return false;
     await this.execute(job);
@@ -168,7 +169,36 @@ export class JobWorker {
     return n;
   }
 
+  /**
+   * A job whose worker died on its last allowed attempt would otherwise be
+   * re-claimed forever: once its lease has expired it is failed and its
+   * credit reservation released.
+   */
+  async reapExhausted(): Promise<number> {
+    const kinds = Object.keys(this.handlers);
+    const dead = await this.sql<JobRow[]>`
+      select * from generation_jobs where status not in ('completed','failed','cancelled') and lease_expires_at < now()
+        and attempts >= max_attempts and kind in ${this.sql(kinds)} limit 20`;
+    for (const job of dead) {
+      await this.sql.begin(async (tx) => {
+        const r = await tx`update generation_jobs set status = 'failed', error_code = 'worker_lost', error_message = 'worker_lost', finished_at = now(),
+          locked_by = null, lease_expires_at = null, updated_at = now() where id = ${job.id} and status not in ('completed','failed','cancelled') returning id`;
+        if (!r.length) return;
+        if (job.credit_reservation_id) await releaseCredits(tx, job.credit_reservation_id, "failed");
+        await tx`insert into job_events (job_id, type, status, message) values (${job.id}, 'finished', 'failed', 'worker_lost')`;
+        await tx`select pg_notify('job_status', ${job.id})`;
+      });
+      await this.opts.hooks?.onFinished?.({ ...job, status: "failed", error_code: "worker_lost" }, "failed").catch(() => {});
+    }
+    return dead.length;
+  }
+
+  private lastReap = 0;
   private async fill() {
+    if (Date.now() - this.lastReap > 15_000) {
+      this.lastReap = Date.now();
+      await this.reapExhausted().catch(() => 0);
+    }
     while (!this.stopped && this.active < this.opts.concurrency) {
       const job = await this.claim().catch(() => null);
       if (!job) return;
@@ -192,7 +222,7 @@ export class JobWorker {
       where id = (
         select id from generation_jobs
         where status not in ('completed','failed','cancelled') and run_after <= now()
-          and (lease_expires_at is null or lease_expires_at < now()) and kind in ${this.sql(kinds)}
+          and (lease_expires_at is null or lease_expires_at < now()) and attempts < max_attempts and kind in ${this.sql(kinds)}
         order by created_at for update skip locked limit 1)
       returning *`;
     return job ?? null;
