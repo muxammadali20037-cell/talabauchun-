@@ -67,7 +67,10 @@ export function extractiveDistractors(answer: string, pool: string[], n = 3, lan
   }
   const aStems = contentStems(answer);
   const aWords = answer.trim().split(/\s+/).length;
+  const answerHasDigits = /\d/.test(answer);
   const scored = [...new Set(pool.map((p) => p.trim()).filter(Boolean))]
+    // same kind of value only: a concept is never paired with a year/number distractor
+    .filter((p) => /\d/.test(p) === answerHasDigits)
     .filter((p) => {
       const np = norm(p);
       const na = norm(answer);

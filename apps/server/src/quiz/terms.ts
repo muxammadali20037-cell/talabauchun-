@@ -8,8 +8,9 @@ const DEB_ATALADI = /^(.{8,300}?)\s+((?:[\p{L}ʻʼ'‘’-]+\s+){0,2}[\p{L}ʻʼ'
 const EN_IS = /^\s*(?:An?\s+|The\s+)?([\p{Lu}][\p{L}\- ]{1,40}?)\s+(?:is defined as|refers to)\s+(.{8,400}?)\.?\s*$/u;
 const RU_NAZ = /^(.{8,300}?)\s+называется\s+([\p{L}\- ]{2,50}?)\.?\s*$/iu;
 
+/** Drops the Uzbek copula "-dir" ("miqdoridir" → "miqdori") but never shortens real words like "qodir". */
 function stripCopula(s: string): string {
-  return s.replace(/(dir|дир)$/u, "").replace(/\s+$/, "");
+  return s.replace(/(\p{L}{4,})(dir|дир)$/u, "$1").replace(/\s+$/, "");
 }
 
 /**

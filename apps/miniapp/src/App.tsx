@@ -1,0 +1,80 @@
+import { lazy, Suspense, useEffect, useRef } from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "./lib/auth";
+import { useT } from "./lib/i18n";
+import { Shell } from "./components/Shell";
+import { Loading } from "./components/ui";
+import { OutsideTelegram } from "./screens/OutsideTelegram";
+import { Onboarding } from "./screens/Onboarding";
+import { Home } from "./screens/Home";
+
+const Create = lazy(() => import("./screens/Create").then((m) => ({ default: m.Create })));
+const Library = lazy(() => import("./screens/Library").then((m) => ({ default: m.Library })));
+const DocumentDetail = lazy(() => import("./screens/DocumentDetail").then((m) => ({ default: m.DocumentDetail })));
+const PageView = lazy(() => import("./screens/DocumentDetail").then((m) => ({ default: m.PageView })));
+const QuizNew = lazy(() => import("./screens/QuizNew").then((m) => ({ default: m.QuizNew })));
+const QuizEditor = lazy(() => import("./screens/QuizEditor").then((m) => ({ default: m.QuizEditor })));
+const QuizList = lazy(() => import("./screens/QuizList").then((m) => ({ default: m.QuizList })));
+const Practice = lazy(() => import("./screens/Practice").then((m) => ({ default: m.Practice })));
+const Join = lazy(() => import("./screens/Join").then((m) => ({ default: m.Join })));
+const Room = lazy(() => import("./screens/Room").then((m) => ({ default: m.Room })));
+const Groups = lazy(() => import("./screens/Groups").then((m) => ({ default: m.Groups })));
+const Profile = lazy(() => import("./screens/Profile").then((m) => ({ default: m.Profile })));
+const InfoPage = lazy(() => import("./screens/InfoPage").then((m) => ({ default: m.InfoPage })));
+const DeckRoutes = lazy(() => import("./screens/decks/DeckRoutes").then((m) => ({ default: m.DeckRoutes })));
+
+export function App() {
+  const { state } = useAuth();
+  const t = useT();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const handledStart = useRef(false);
+
+  // Invite links (t.me/<bot>?startapp=r<token>) open straight into the invited room; onboarding never blocks that path.
+  useEffect(() => {
+    if (state.status !== "ready" || handledStart.current) return;
+    handledStart.current = true;
+    const sp = state.startParam;
+    if (sp && sp.startsWith("r") && sp.length > 10) navigate(`/join/${sp.slice(1)}`, { replace: true });
+    else if (!state.me.user.onboarded && location.pathname === "/") navigate("/onboarding", { replace: true });
+  }, [state, navigate, location.pathname]);
+
+  if (state.status === "loading")
+    return (
+      <div className="app">
+        <main className="main no-nav" aria-label={t("common.loading")}>
+          <Loading lines={4} />
+        </main>
+      </div>
+    );
+  if (state.status === "outside_telegram" || state.status === "error") return <OutsideTelegram code={state.status === "error" ? state.code : null} />;
+
+  return (
+    <Shell>
+      <Suspense fallback={<Loading />}>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/create" element={<Create />} />
+        <Route path="/library" element={<Library />} />
+        <Route path="/library/upload" element={<Library openUpload />} />
+        <Route path="/library/:id" element={<DocumentDetail />} />
+        <Route path="/library/:id/page/:n" element={<PageView />} />
+        <Route path="/quizzes" element={<QuizList />} />
+        <Route path="/quiz/new" element={<QuizNew />} />
+        <Route path="/quiz/:id/edit" element={<QuizEditor />} />
+        <Route path="/attempt/:id" element={<Practice />} />
+        <Route path="/join/:token" element={<Join />} />
+        <Route path="/room/:id" element={<Room />} />
+        <Route path="/groups" element={<Groups />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/terms" element={<InfoPage kind="terms" />} />
+        <Route path="/privacy" element={<InfoPage kind="privacy" />} />
+        <Route path="/help" element={<InfoPage kind="help" />} />
+        <Route path="/decks/*" element={<DeckRoutes />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      </Suspense>
+    </Shell>
+  );
+}

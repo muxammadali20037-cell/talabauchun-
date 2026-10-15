@@ -32,6 +32,8 @@ export type RoomStateView = {
   status: "lobby" | "running" | "paused" | "finished" | "cancelled";
   phase: "question" | "reveal" | null;
   isHost: boolean;
+  /** join code, only sent to the host */
+  code: string | null;
   serverNow: number;
   deadline: number | null;
   pausedRemainingMs: number | null;

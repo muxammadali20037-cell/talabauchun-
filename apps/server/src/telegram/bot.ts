@@ -152,6 +152,10 @@ export class Bot {
     switch (cmd) {
       case "/start": {
         const param = args[0] ?? "";
+        if (param === "support") {
+          await this.deps.sql`insert into bot_states (user_id, state) values (${user.id}, 'awaiting_support') on conflict (user_id) do update set state = excluded.state, updated_at = now()`;
+          return this.send(chatId, t(lang, "bot.support"));
+        }
         if (param.startsWith("r") && param.length > 10) {
           // room invite opened via the bot: hand over to the Mini App with the same start parameter
           const btn = appButton(this.deps.cfg, lang, `/join/${param.slice(1)}`, "room.join");

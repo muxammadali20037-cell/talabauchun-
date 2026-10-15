@@ -43,7 +43,6 @@ export async function buildApp(deps: Deps, opts: { hub?: RoomHub; logger?: boole
     logger: opts.logger === false ? false : { level: deps.cfg.LOG_LEVEL, redact: ["req.headers.authorization", "req.headers.x-telegram-bot-api-secret-token"] },
     bodyLimit: 2 * 1024 * 1024,
     trustProxy: true,
-    disableRequestLogging: deps.cfg.NODE_ENV === "test",
   });
 
   app.addHook("onSend", async (req, reply) => {
@@ -197,6 +196,42 @@ export async function buildApp(deps: Deps, opts: { hub?: RoomHub; logger?: boole
         updated_at = now() where user_id = ${user.id}`;
     }
     return { user: publicUser((await getUserById(deps.sql, user.id))!) };
+  });
+
+  // ── home dashboard: last work, nearest deadlines, due review cards ──
+  app.get("/api/home", { preHandler: auth }, async (req) => {
+    const user = me(req);
+    const recent = await deps.sql<{ kind: string; id: string; title: string; updatedAt: Date; status: string | null }[]>`
+      (select 'quiz' as kind, q.id, q.title, q.updated_at as "updatedAt", null::text as status from quizzes q
+        where q.owner_id = ${user.id} and q.deleted_at is null order by q.updated_at desc limit 5)
+      union all
+      (select 'document', d.id, d.title, d.updated_at, null from documents d where d.owner_id = ${user.id} and d.deleted_at is null order by d.updated_at desc limit 5)
+      union all
+      (select 'deck', k.id, k.title, k.updated_at, k.status from decks k where k.owner_id = ${user.id} and k.deleted_at is null order by k.updated_at desc limit 5)
+      order by "updatedAt" desc limit 8`;
+    const deadlines = await deps.sql<{ id: string; title: string; dueAt: Date }[]>`
+      select t.id, t.title, t.due_at as "dueAt" from tasks t
+      where t.status in ('todo','in_progress') and t.due_at is not null and t.due_at > now() - interval '1 day'
+        and (t.assignee_id = ${user.id} or (t.assignee_id is null and t.workspace_id in (select workspace_id from memberships where user_id = ${user.id})))
+      order by t.due_at limit 5`;
+    const [cards] = await deps.sql<{ n: number }[]>`select count(*)::int as n from flashcards where owner_id = ${user.id} and deleted_at is null and due_at <= now()`;
+    return { recent, deadlines, dueCards: cards?.n ?? 0 };
+  });
+
+  app.get("/api/workspaces", { preHandler: auth }, async (req) => {
+    const items = await deps.sql<{ id: string; name: string; kind: string; role: string; members: number }[]>`
+      select w.id, w.name, w.kind, m.role, (select count(*)::int from memberships x where x.workspace_id = w.id) as members
+      from memberships m join workspaces w on w.id = m.workspace_id
+      where m.user_id = ${me(req).id} and w.deleted_at is null and w.kind = 'group' order by w.created_at desc limit 100`;
+    return { items };
+  });
+
+  app.get("/api/rooms", { preHandler: auth }, async (req) => {
+    const q = z.object({ limit: z.coerce.number().int().min(1).max(50).default(20) }).parse(req.query);
+    const items = await deps.sql`
+      select r.id, r.title, r.status, m.role, r.created_at, (select count(*)::int from room_members x where x.room_id = r.id and x.role <> 'host') as participants
+      from room_members m join rooms r on r.id = m.room_id where m.user_id = ${me(req).id} order by r.created_at desc limit ${q.limit}`;
+    return { items };
   });
 
   // ── documents ──
@@ -361,8 +396,9 @@ export async function buildApp(deps: Deps, opts: { hub?: RoomHub; logger?: boole
       prefix: "/app/",
       index: ["index.html"],
       cacheControl: false,
-      setHeaders: (res: { setHeader: (k: string, v: string) => void }, filePath: string) => {
-        res.setHeader("cache-control", filePath.endsWith("index.html") ? "no-cache" : "public, max-age=31536000, immutable");
+      // @fastify/static v10 passes the Fastify reply here
+      setHeaders: (reply: { header: (k: string, v: string) => void }, filePath: string) => {
+        reply.header("cache-control", filePath.endsWith("index.html") ? "no-cache" : "public, max-age=31536000, immutable");
       },
     } as never);
     app.get("/", async (_req, reply) => reply.redirect("/app/"));

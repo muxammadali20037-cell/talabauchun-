@@ -25,7 +25,7 @@ function mapDeep(obj: unknown, path: string[], fn: (value: string, key: string) 
 function cyrillicPreservingMarkup(value: string): string {
   // Keep HTML tags (bot messages use parse_mode=HTML) and brand names intact.
   return value
-    .split(/(<[^>]+>|TALABA AI|Telegram|PDF|DOCX|PPTX|TXT|JPG\/PNG|CSV\/XLSX|OCR|AI|PPTX|Quiz Studio)/g)
+    .split(/(<[^>]+>|TALABA AI|Telegram|Anthropic \(Claude\) API|Mini App|PDF|DOCX|PPTX|TXT|JPG\/PNG|CSV\/XLSX|OCR|AI|ID|Quiz Studio)/g)
     .map((part, i) => (i % 2 === 1 ? part : latinToCyrillic(part)))
     .join("");
 }

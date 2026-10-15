@@ -12,3 +12,4 @@ playwright-report/
 .DS_Store
 artifacts/tmp/
 scratch/
+docs/evidence/e2e/test-results/

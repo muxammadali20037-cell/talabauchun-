@@ -15,7 +15,7 @@ import { extractPdf } from "./pdf";
 import { extractPptx } from "./pptx";
 import { extractCsv, extractXlsx } from "./tabular";
 import { decodeText, extractPlainText } from "./text";
-import { ExtractError, type ExtractedPage, type ExtractResult } from "./types";
+import { ExtractError, reflowLines, type ExtractedPage, type ExtractResult } from "./types";
 import { safeFetch } from "./url-fetch";
 import { miniAppUrl } from "../telegram/links";
 
@@ -109,7 +109,7 @@ export function ingestHandler(deps: Deps) {
             ocrUsed = 1;
             ocrPages = 1;
             const status = r.words === 0 ? "failed" : r.confidence >= 60 ? "ok" : r.confidence >= 35 ? "low_confidence" : "failed";
-            extracted = { pages: [{ pageIndex: 1, kind: "image", text: r.text, method: "ocr", ocrConfidence: Math.round(r.confidence * 10) / 10, status }], sections: [], pageCount: 1, metadata: {} };
+            extracted = { pages: [{ pageIndex: 1, kind: "image", text: reflowLines(r.text), method: "ocr", ocrConfidence: Math.round(r.confidence * 10) / 10, status }], sections: [], pageCount: 1, metadata: {} };
           }
           break;
         }

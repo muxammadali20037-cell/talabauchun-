@@ -28,7 +28,7 @@ describe("latinToCyrillic", () => {
       else for (const v of Object.values(o as object)) walk(v);
     };
     walk(cyr);
-    const allowed = /TALABA AI|Telegram|PDF|DOCX|PPTX|TXT|JPG\/PNG|CSV\/XLSX|OCR|AI|Quiz Studio|Academic Clean|Modern Data|Creative Seminar|\{[a-z]+\}|<\/?b>|\/[a-z_]+|https?:\S+|MB/g;
+    const allowed = /TALABA AI|Telegram|Anthropic \(Claude\) API|Mini App|\bID\b|PDF|DOCX|PPTX|TXT|JPG\/PNG|CSV\/XLSX|OCR|AI|Quiz Studio|Academic Clean|Modern Data|Creative Seminar|\{[a-z]+\}|<\/?b>|\/[a-z_]+|https?:\S+|MB/g;
     const leftovers = flat
       .map((s) => s.replace(allowed, ""))
       .filter((s) => /[A-Za-z]/.test(s));

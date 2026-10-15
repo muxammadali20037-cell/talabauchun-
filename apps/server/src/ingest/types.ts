@@ -50,3 +50,22 @@ export function letterCount(s: string): number {
   const m = s.match(/\p{L}/gu);
   return m ? m.length : 0;
 }
+
+/**
+ * PDF text layers and OCR break lines where the page wraps, which splits
+ * sentences. Joins a line with the next when the previous line does not end a
+ * sentence and the next one starts in lower case; "iqti-\nsodiyot" loses the hyphen.
+ * Headings and paragraph starts (capital letter after a finished line) stay separate.
+ */
+export function reflowLines(text: string): string {
+  const lines = text.split("\n");
+  const out: string[] = [];
+  for (const raw of lines) {
+    const line = raw.trim();
+    const prev = out[out.length - 1];
+    if (prev !== undefined && prev !== "" && line !== "" && !/[.!?:;…»”"]$/u.test(prev) && (/^[\p{Ll}(«"„]/u.test(line) || /^\d+(?:[.,]\d+)?(?:-|\s+)\p{Ll}/u.test(line))) {
+      out[out.length - 1] = /\p{L}-$/u.test(prev) && /^\p{Ll}/u.test(line) ? prev.slice(0, -1) + line : `${prev} ${line}`;
+    } else out.push(line);
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n");
+}

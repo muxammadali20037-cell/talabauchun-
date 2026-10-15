@@ -1,6 +1,6 @@
 import { getDocument, InvalidPDFException, PasswordException } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { ocrPdfPage } from "./ocr";
-import { cleanText, ExtractError, letterCount, type ExtractedPage, type ExtractedSection, type ExtractResult } from "./types";
+import { cleanText, ExtractError, letterCount, reflowLines, type ExtractedPage, type ExtractedSection, type ExtractResult } from "./types";
 
 export type PdfOptions = {
   maxPages: number;
@@ -47,7 +47,7 @@ export async function extractPdf(data: Buffer, pdfPathForOcr: string, opts: PdfO
       const page = await doc.getPage(i);
       const content = await page.getTextContent();
       const raw = (content.items as TextItem[]).map((it) => (it.str ?? "") + (it.hasEOL ? "\n" : "")).join("");
-      let text = cleanText(raw);
+      let text = reflowLines(cleanText(raw));
       const label = labels?.[i - 1] ?? null;
       let result: ExtractedPage;
       if (letterCount(text) >= MIN_TEXT_LETTERS) {
@@ -55,7 +55,7 @@ export async function extractPdf(data: Buffer, pdfPathForOcr: string, opts: PdfO
       } else if (opts.ocr.enabled) {
         try {
           const ocr = await ocrPdfPage(pdfPathForOcr, i, { pdftoppm: opts.ocr.pdftoppm, tesseract: opts.ocr.tesseract, langs: opts.ocr.langs });
-          const ocrText = cleanText(ocr.text);
+          const ocrText = reflowLines(cleanText(ocr.text));
           if (ocr.words === 0 || letterCount(ocrText) === 0) {
             result = { pageIndex: i, pageLabel: label, kind: "pdf_page", text, method: text ? "text" : "none", status: text ? "ok" : "empty" };
           } else {
