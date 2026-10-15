@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { RoomStateView } from "@talaba/shared";
 import { api } from "../lib/api";
+import { useMe } from "../lib/auth";
+import { errorMessage } from "../lib/errors";
 import { useT } from "../lib/i18n";
 import { useRoomSocket } from "../lib/room";
 import { haptic, shareToTelegram } from "../lib/telegram";
@@ -81,6 +83,46 @@ function TeamBoard({ s }: { s: RoomStateView }) {
   );
 }
 
+/** The host may name one participant co-host (host controls; the room is not paused while either is online). */
+function CoHostPicker({ s, roomId }: { s: RoomStateView; roomId: string }) {
+  const t = useT();
+  const me = useMe();
+  const co = s.participants.find((p) => p.isCoHost);
+  const candidates = s.participants.filter((p) => !p.isHost && p.userId !== me.user.id);
+  const [busy, setBusy] = useState(false);
+  const set = async (userId: string | null) => {
+    setBusy(true);
+    try {
+      await api.post(`/api/rooms/${roomId}/cohost`, { userId });
+      toast(t("common.done"));
+    } catch (e) {
+      toast(errorMessage(e, t));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (s.participants.find((p) => p.userId === me.user.id)?.isCoHost) return null;
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      {co ? (
+        <div className="row wrap">
+          <span className="small">🧑‍🏫 {t("room.coHostIs", { name: co.name })}</span>
+          <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => set(null)}>{t("room.coHostRemove")}</button>
+        </div>
+      ) : candidates.length > 0 ? (
+        <label className="row wrap small">
+          <span>{t("room.coHostPick")}</span>
+          <select className="select" style={{ width: "auto" }} value="" disabled={busy} onChange={(e) => e.target.value && set(e.target.value)} aria-label={t("room.coHostPick")}>
+            <option value="">—</option>
+            {candidates.map((p) => <option key={p.userId} value={p.userId}>{p.name}</option>)}
+          </select>
+        </label>
+      ) : null}
+      <span className="caption">{t("room.coHostHint")}</span>
+    </div>
+  );
+}
+
 function Lobby({ s, roomId }: { s: RoomStateView; roomId: string }) {
   const t = useT();
   const [invite, setInvite] = useState<Invite | null>(() => {
@@ -130,6 +172,7 @@ function Lobby({ s, roomId }: { s: RoomStateView; roomId: string }) {
             <span key={p.userId} className="badge badge-neutral" style={{ opacity: p.connected ? 1 : 0.6 }}>{p.connected ? "●" : "○"} {p.name}</span>
           ))}
         </div>
+        {s.isHost && <CoHostPicker s={s} roomId={roomId} />}
       </section>
     </div>
   );

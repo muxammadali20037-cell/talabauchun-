@@ -26,6 +26,7 @@ export function QuizNew() {
   const [useAi, setUseAi] = useState(true);
   const [shuffleOptions, setShuffleOptions] = useState(true);
   const [shuffleQuestions, setShuffleQuestions] = useState(false);
+  const [trueFalse, setTrueFalse] = useState(false);
   const [time, setTime] = useState(30);
   const [mix, setMix] = useState<"easy" | "balanced" | "hard">("balanced");
   const [err, setErr] = useState<string | null>(null);
@@ -57,7 +58,7 @@ export function QuizNew() {
     setErr(null);
     setBusy(true);
     try {
-      const settings = { count, shuffleOptions, shuffleQuestions, timePerQuestionSec: time, difficultyMix: mixes[mix], language: me.user.language };
+      const settings = { count, shuffleOptions, shuffleQuestions, includeTrueFalse: trueFalse, timePerQuestionSec: time, difficultyMix: mixes[mix], language: me.user.language };
       const body =
         method === "from_source"
           ? { method, documentIds: docIds, sectionIds: sectionIds.length ? sectionIds : undefined, settings, useAi, title: title || undefined, idempotencyKey: idem }
@@ -172,6 +173,7 @@ export function QuizNew() {
             <Field label={t("quiz.timePerQuestion")}>{(id) => <input id={id} className="input" type="number" min={5} max={600} value={time} onChange={(e) => setTime(Number(e.target.value))} />}</Field>
             <Toggle label={t("quiz.shuffleOptions")} checked={shuffleOptions} onChange={setShuffleOptions} />
             <Toggle label={t("quiz.shuffleQuestions")} checked={shuffleQuestions} onChange={setShuffleQuestions} />
+            {method === "from_source" && <Toggle label={t("quiz.includeTrueFalse")} hint={t("quiz.includeTrueFalseHint")} checked={trueFalse} onChange={setTrueFalse} />}
             {me.features.ai && <Toggle label={t("quiz.useAi")} checked={useAi} onChange={setUseAi} hint={t("quiz.useAiHint")} />}
           </div>
         </details>

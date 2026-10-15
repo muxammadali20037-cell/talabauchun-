@@ -224,6 +224,8 @@ export const ru: Messages = {
     useAi: "Использовать ИИ",
     useAiHint: "Если выключить, вопросы строятся только из текста автоматически (дешевле).",
     userConfirmed: "подтверждено пользователем",
+    includeTrueFalse: "Также вопросы «Верно / Неверно»",
+    includeTrueFalseHint: "Из определений в книге; неверное утверждение берёт определение другого понятия, источник указывается.",
   },
   practice: {
     start: "Начать",
@@ -296,6 +298,10 @@ export const ru: Messages = {
     teamName: "Команда {name}",
     membersN: "участников: {n}",
     teamRule: "Балл команды = среднее баллов участников.",
+    coHostPick: "Назначить со-ведущего:",
+    coHostIs: "Со-ведущий: {name}",
+    coHostRemove: "Снять",
+    coHostHint: "Со-ведущий может управлять комнатой. Пока онлайн вы или со-ведущий, комната не ставится на паузу.",
   },
   group: {
     title: "Группы",
@@ -1014,5 +1020,13 @@ export const ru: Messages = {
     payment_refunded: "Возвращён",
     payment_failed: "Ошибка",
     payment_cancelled: "Отменён",
+  },
+  reminders: {
+    digestTitle: "📚 Учёба на сегодня",
+    planToday: "• План: задач — {n} (~{minutes} мин)",
+    cardsDue: "• Повторить: карточек — {n}",
+    footer: "Напоминания можно выключить или задать тихие часы в Профиль → Уведомления.",
+    open: "Открыть",
+    taskDue: "⏰ Срок задачи «{title}» ({workspace}): {when}.",
   },
 };

@@ -37,8 +37,8 @@ export async function createGroupRun(deps: Deps, user: UserRow, quizId: string, 
   const token = randomToken(16);
   const orders: Record<string, string[]> = {};
   for (const x of usable) {
-    const opts = await deps.sql<{ id: string }[]>`select id from options where question_id = ${x.id} order by position`;
-    orders[x.id] = shuffle(opts.map((o) => o.id));
+    const opts = await deps.sql<{ id: string; type: string }[]>`select o.id, q.type from options o join questions q on q.id = o.question_id where o.question_id = ${x.id} order by o.position`;
+    orders[x.id] = opts[0]?.type === "true_false" ? opts.map((o) => o.id) : shuffle(opts.map((o) => o.id));
   }
   const [run] = await deps.sql<{ id: string }[]>`
     insert into group_quiz_runs (quiz_version_id, host_id, anonymous, open_period, question_ids, skipped_question_ids, option_orders, link_token_hash, link_expires_at)

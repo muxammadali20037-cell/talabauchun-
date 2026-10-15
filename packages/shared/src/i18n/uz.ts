@@ -227,6 +227,8 @@ export const uz = {
     useAi: "AI’dan foydalanish",
     useAiHint: "Oʻchirilsa, savollar faqat matndan avtomatik tuziladi (kredit kamroq).",
     userConfirmed: "foydalanuvchi tasdiqladi",
+    includeTrueFalse: "“Toʻgʻri / Notoʻgʻri” savollar ham",
+    includeTrueFalseHint: "Kitobdagi taʼriflardan; notoʻgʻri gap boshqa tushuncha taʼrifi bilan tuziladi va manbasi koʻrsatiladi.",
   },
   practice: {
     start: "Boshlash",
@@ -299,6 +301,10 @@ export const uz = {
     teamName: "{name} jamoasi",
     membersN: "{n} aʼzo",
     teamRule: "Jamoa bali = aʼzolar ballarining oʻrtachasi.",
+    coHostPick: "Yordamchi (co-host) tayinlash:",
+    coHostIs: "Co-host: {name}",
+    coHostRemove: "Olib tashlash",
+    coHostHint: "Co-host xonani boshqara oladi. Siz yoki co-host onlayn boʻlsangiz, xona pauzaga tushmaydi.",
   },
   group: {
     title: "Guruhlar",
@@ -1017,6 +1023,14 @@ export const uz = {
     payment_refunded: "Qaytarilgan",
     payment_failed: "Muvaffaqiyatsiz",
     payment_cancelled: "Bekor qilingan",
+  },
+  reminders: {
+    digestTitle: "📚 Bugungi oʻqish",
+    planToday: "• Reja: {n} ta vazifa (~{minutes} daqiqa)",
+    cardsDue: "• Takrorlash: {n} ta kartochka",
+    footer: "Eslatmalarni Profil → Bildirishnomalar’da oʻchirish yoki tinch soatlarni belgilash mumkin.",
+    open: "Ochish",
+    taskDue: "⏰ «{title}» ({workspace}) muddati: {when}.",
   },
 } as const;
 

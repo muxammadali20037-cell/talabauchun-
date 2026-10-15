@@ -32,6 +32,20 @@ const T = {
     ru: (s: string) => `Фраза из источника: «${s}»`,
     en: (s: string) => `Sentence in the source: “${s}”`,
   },
+  tfStatement: {
+    uz: (t: string, d: string) => `Toʻgʻrimi yoki notoʻgʻri: «${t} — ${d}»`,
+    "uz-Cyrl": (t: string, d: string) => `Тўғрими ёки нотўғри: «${t} — ${d}»`,
+    ru: (t: string, d: string) => `Верно или неверно: «${t} — ${d}»`,
+    en: (t: string, d: string) => `True or false: “${t}: ${d}”`,
+  },
+  trueLabel: { uz: "Toʻgʻri", "uz-Cyrl": "Тўғри", ru: "Верно", en: "True" },
+  falseLabel: { uz: "Notoʻgʻri", "uz-Cyrl": "Нотўғри", ru: "Неверно", en: "False" },
+  tfFalseWhy: {
+    uz: (t: string, d: string, other: string) => `Bu ${other} taʼrifi. ${t} — ${d}.`,
+    "uz-Cyrl": (t: string, d: string, other: string) => `Бу ${other} таърифи. ${t} — ${d}.`,
+    ru: (t: string, d: string, other: string) => `Это определение понятия «${other}». ${t} — ${d}.`,
+    en: (t: string, d: string, other: string) => `That is the definition of ${other}. ${t}: ${d}.`,
+  },
   otherTerm: {
     uz: (t: string, d: string) => `${t} — boshqa tushuncha: ${d}.`,
     "uz-Cyrl": (t: string, d: string) => `${t} — бошқа тушунча: ${d}.`,
@@ -63,7 +77,7 @@ function evidenceFor(chunk: RetrievedChunk, sentence: string): CandidateEvidence
  * carries the exact sentence it came from as evidence. Output language follows
  * the source text (templates exist for uz, uz-Cyrl, ru, en).
  */
-export function extractiveQuestions(chunks: RetrievedChunk[], opts: { max: number; language?: Lang }): Candidate[] {
+export function extractiveQuestions(chunks: RetrievedChunk[], opts: { max: number; language?: Lang; trueFalse?: boolean }): Candidate[] {
   const texts = chunks.map((c) => c.text);
   const srcLang = detectLanguage(texts.join("\n"));
   const lang: Lang = srcLang;
@@ -94,6 +108,32 @@ export function extractiveQuestions(chunks: RetrievedChunk[], opts: { max: numbe
       topic: chunk.locator.heading ?? null,
     });
     usedSentences.add(d.sentence);
+  }
+
+  // 1b) true / false from the same definitions: a false statement pairs a term with
+  // another term's definition from the same source; both quotes are kept as evidence.
+  if (opts.trueFalse && defs.length >= 2) {
+    defs.forEach((d, i) => {
+      const chunk = chunks[d.chunkIndex]!;
+      const termCap = capitalize(d.term);
+      const makeFalse = i % 2 === 1;
+      const other = defs.find((x, j) => j !== i && contentStems(x.term).join(" ") !== contentStems(d.term).join(" "));
+      if (makeFalse && !other) return;
+      const shown = makeFalse ? other!.definition : d.definition;
+      out.push({
+        ...base,
+        text: T.tfStatement[lang](termCap, shown),
+        type: "true_false",
+        // fixed order (True, False) — it is a convention, not a hint
+        options: [{ text: T.trueLabel[lang], correct: !makeFalse }, { text: T.falseLabel[lang], correct: makeFalse }],
+        explanation: makeFalse ? T.tfFalseWhy[lang](termCap, d.definition, capitalize(other!.term)) : T.explainDef[lang](termCap, d.definition),
+        difficulty: "medium",
+        cognitiveLevel: "understand",
+        evidence: evidenceFor(chunk, d.sentence),
+        topic: chunk.locator.heading ?? null,
+        notes: { userOptions: true },
+      });
+    });
   }
 
   // 2) number / 3) direction / 4) term cloze

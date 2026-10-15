@@ -148,6 +148,24 @@ describe("Quiz Studio (no AI configured: extractive mode)", () => {
     expect(new Set(keyPositions).size).toBeGreaterThan(1);
   });
 
+  it("makes True/False items from the book's definitions when asked: a false item swaps in another term's definition, both cite the book", async () => {
+    const user = await makeUser(deps);
+    const docId = await bookFor(user);
+    const { quizId } = await createQuiz(deps, user, { method: "from_source", documentIds: [docId], settings: { count: 20, includeTrueFalse: true, difficultyMix: { easy: 0.34, medium: 0.33, hard: 0.33 } }, idempotencyKey: "tf-quiz-0001" });
+    await testWorker(deps).drain();
+    const ed = await getQuizForEditor(deps, user, quizId);
+    const tf = (ed.questions as { type: string; text: string; options: { text: string; correct?: boolean }[]; evidenceStatus: string; checks: { rule: string; result: string }[] }[]).filter((q) => q.type === "true_false");
+    expect(tf.length).toBeGreaterThanOrEqual(2);
+    for (const q of tf) {
+      expect(q.options.map((o) => o.text)).toEqual(["Toʻgʻri", "Notoʻgʻri"]);
+      expect(q.options.filter((o) => o.correct).length).toBe(1);
+      expect(q.evidenceStatus).toBe("verified");
+      expect(q.checks.find((c) => c.rule === "single_correct")!.result).toBe("pass");
+    }
+    expect(tf.some((q) => q.options[1]!.correct)).toBe(true);
+    expect(tf.some((q) => q.options[0]!.correct)).toBe(true);
+  });
+
   it("forbids other accounts from reading editor data or using foreign documents", async () => {
     const owner = await makeUser(deps);
     const other = await makeUser(deps);

@@ -7,6 +7,7 @@ import { OutboxSender } from "./telegram/outbox";
 import { tickGroupRuns } from "./group/native-quiz";
 import { slideJobHandlers } from "./slides/jobs";
 import { cleanupExpiredExports } from "./account/data";
+import { tickReminders } from "./notify/reminders";
 
 /**
  * Background worker: generation jobs (leases + checkpoints survive restarts),
@@ -23,11 +24,14 @@ outbox?.start();
 const groupTimer = setInterval(() => void tickGroupRuns(deps).catch((e) => log.error({ err: String(e) }, "group tick failed")), 1000);
 // data-export archives are offered for 7 days, then deleted
 const cleanupTimer = setInterval(() => void cleanupExpiredExports(deps).catch((e) => log.error({ err: String(e) }, "export cleanup failed")), 3600_000);
+// study digests and deadline reminders (deduplicated, respects quiet hours)
+const reminderTimer = setInterval(() => void tickReminders(deps).catch((e) => log.error({ err: String(e) }, "reminders failed")), 5 * 60_000);
 log.info({ worker: worker.workerId, concurrency: cfg.WORKER_CONCURRENCY }, "worker started");
 
 const shutdown = async () => {
   clearInterval(groupTimer);
   clearInterval(cleanupTimer);
+  clearInterval(reminderTimer);
   outbox?.stop();
   await worker.stop();
   await deps.sql.end({ timeout: 5 });

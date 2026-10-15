@@ -39,7 +39,7 @@ export type RoomStateView = {
   serverNow: number;
   deadline: number | null;
   pausedRemainingMs: number | null;
-  participants: { userId: string; name: string; connected: boolean; isHost: boolean }[];
+  participants: { userId: string; name: string; connected: boolean; isHost: boolean; isCoHost?: boolean }[];
   question: PublicQuestion | null;
   myAnswer: { questionId: string; optionIds: string[]; acceptedAt: number } | null;
   answeredCount: number;

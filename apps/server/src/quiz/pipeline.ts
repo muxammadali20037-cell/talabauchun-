@@ -50,11 +50,11 @@ export function quizGenerateHandler(deps: Deps) {
         if (!chunks.length) throw new JobError("no_source_text");
         const lang = settings.language || detectLanguage(chunks.map((c) => c.text).join(" "));
         if (useAi) {
-          const r = await aiGenerateFromChunks(deps.ai!, chunks, { count: settings.count, language: lang, allowMultiple: settings.allowMultipleCorrect, difficultyMix: settings.difficultyMix, topic: settings.topic, meta }).catch(toAiError);
+          const r = await aiGenerateFromChunks(deps.ai!, chunks, { count: settings.count, language: lang, allowMultiple: settings.allowMultipleCorrect, allowTrueFalse: settings.includeTrueFalse, difficultyMix: settings.difficultyMix, topic: settings.topic, meta }).catch(toAiError);
           candidates = r.candidates;
           note = r.note;
         } else {
-          candidates = pickByDifficulty(extractiveQuestions(chunks, { max: settings.count }), settings.count, settings.difficultyMix);
+          candidates = pickByDifficulty(extractiveQuestions(chunks, { max: settings.count, trueFalse: settings.includeTrueFalse }), settings.count, settings.difficultyMix);
         }
       } else if (req.method === "from_questions" || req.method === "from_qa") {
         const parsed =
@@ -112,7 +112,7 @@ export function quizGenerateHandler(deps: Deps) {
       }
       // Generated options are stored in random order (the correct one is not always first, even with
       // per-player shuffling switched off). Options the user typed keep the user's order.
-      candidates = candidates.map((c) => (c.notes?.userOptions ? c : { ...c, options: shuffle(c.options) }));
+      candidates = candidates.map((c) => (c.notes?.userOptions || c.type === "true_false" ? c : { ...c, options: shuffle(c.options) }));
       await ctx.saveCheckpoint({ candidates, note });
     } else {
       note = (ctx.checkpoint.note as string | null) ?? null;

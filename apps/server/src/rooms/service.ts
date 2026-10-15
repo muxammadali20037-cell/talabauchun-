@@ -245,6 +245,25 @@ export async function setPresence(sql: Sql, roomId: string, userId: string, conn
   await sql`update room_members set connected = ${connected}, last_seen_at = now() where room_id = ${roomId} and user_id = ${userId}`;
 }
 
+/**
+ * The host may name one participant co-host: they get the host controls, and while
+ * either of them is connected the room is not paused for "host away".
+ */
+export async function setCoHost(deps: Deps, user: UserRow, roomId: string, coHostId: string | null) {
+  const [room] = await deps.sql<{ host_id: string; status: string }[]>`select host_id, status from rooms where id = ${roomId}`;
+  if (!room) throw notFound("room");
+  if (room.host_id !== user.id) throw forbidden("host only");
+  if (coHostId) {
+    if (coHostId === user.id) throw new AppError("already_host", 400);
+    const [m] = await deps.sql`select 1 from room_members where room_id = ${roomId} and user_id = ${coHostId}`;
+    if (!m) throw notFound("participant");
+  }
+  await deps.sql`update rooms set co_host_id = ${coHostId}, state_version = state_version + 1 where id = ${roomId}`;
+  await event(deps.sql, roomId, coHostId ? "co_host_set" : "co_host_removed", user.id);
+  await notifyRoom(deps.sql, roomId);
+  return { coHostId };
+}
+
 /** Called after the host's grace period: pause a running room if the host (and co-host) are still away. */
 export async function pauseIfHostAway(deps: Deps, roomId: string) {
   const changed = await deps.sql<{ id: string }[]>`
@@ -263,7 +282,7 @@ export async function pauseIfHostAway(deps: Deps, roomId: string) {
 
 export type SharedRoomState = {
   room: RoomRow;
-  participants: { userId: string; name: string; connected: boolean; isHost: boolean }[];
+  participants: { userId: string; name: string; connected: boolean; isHost: boolean; isCoHost: boolean }[];
   question: { id: string; text: string; type: string; optionIds: string[]; options: Map<string, string> } | null;
   answers: Map<string, { optionIds: string[]; at: number }>;
   answeredCount: number;
@@ -315,7 +334,7 @@ export async function loadSharedState(sql: Sql, roomId: string): Promise<SharedR
     .sort((a, b) => b.points - a.points || b.correct - a.correct);
   return {
     room,
-    participants: members.map((m) => ({ userId: m.user_id, name: m.display_name, connected: m.connected, isHost: m.role === "host" })),
+    participants: members.map((m) => ({ userId: m.user_id, name: m.display_name, connected: m.connected, isHost: m.role === "host" || m.user_id === room.co_host_id, isCoHost: m.user_id === room.co_host_id })),
     question,
     answers,
     answeredCount: answers.size,
@@ -365,7 +384,7 @@ export function viewFor(shared: SharedRoomState, userId: string, secret: string,
             text: q.text,
             type: q.type,
             multiple: q.type === "multiple",
-            options: optionOrder(room.id, userId, q.id, q.optionIds, secret).map((id) => ({ id, text: q.options.get(id)! })),
+            options: (q.type === "true_false" ? q.optionIds : optionOrder(room.id, userId, q.id, q.optionIds, secret)).map((id) => ({ id, text: q.options.get(id)! })),
           }
         : null,
     myAnswer: mine && q ? { questionId: q.id, optionIds: mine.optionIds, acceptedAt: mine.at } : null,

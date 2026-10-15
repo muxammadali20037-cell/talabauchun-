@@ -10,10 +10,11 @@ export async function enqueueMessage(
   sql: Sql | Tx,
   msg: { chatId: number | string; method: string; payload: Record<string, unknown>; userId?: string | null; dedupeKey?: string; notBefore?: Date },
 ) {
-  await sql`
+  const r = await sql`
     insert into notifications (user_id, chat_id, method, payload, dedupe_key, next_attempt_at)
     values (${msg.userId ?? null}, ${String(msg.chatId)}, ${msg.method}, ${sql.json(msg.payload as never)}, ${msg.dedupeKey ?? null}, ${msg.notBefore ?? new Date()})
-    on conflict (dedupe_key) do nothing`;
+    on conflict (dedupe_key) do nothing returning id`;
+  return r.length > 0;
 }
 
 class TokenBucket {

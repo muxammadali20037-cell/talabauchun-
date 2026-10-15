@@ -224,6 +224,8 @@ export const en: Messages = {
     useAi: "Use AI",
     useAiHint: "When off, questions are built from the text only (fewer credits).",
     userConfirmed: "confirmed by user",
+    includeTrueFalse: "Include True / False questions",
+    includeTrueFalseHint: "Built from the book's definitions; a false statement uses another term's definition, with the source shown.",
   },
   practice: {
     start: "Start",
@@ -296,6 +298,10 @@ export const en: Messages = {
     teamName: "Team {name}",
     membersN: "{n} members",
     teamRule: "Team score = average of members' points.",
+    coHostPick: "Make co-host:",
+    coHostIs: "Co-host: {name}",
+    coHostRemove: "Remove",
+    coHostHint: "A co-host can run the room. While you or the co-host is online, the room is not paused.",
   },
   group: {
     title: "Groups",
@@ -1014,5 +1020,13 @@ export const en: Messages = {
     payment_refunded: "Refunded",
     payment_failed: "Failed",
     payment_cancelled: "Cancelled",
+  },
+  reminders: {
+    digestTitle: "📚 Today's study",
+    planToday: "• Plan: {n} tasks (~{minutes} min)",
+    cardsDue: "• Review: {n} flashcards",
+    footer: "You can turn reminders off or set quiet hours in Profile → Notifications.",
+    open: "Open",
+    taskDue: "⏰ “{title}” ({workspace}) is due {when}.",
   },
 };

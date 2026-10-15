@@ -51,10 +51,10 @@ Rules for every question:
 export async function aiGenerateFromChunks(
   ai: AiClient,
   chunks: RetrievedChunk[],
-  o: { count: number; language: string; allowMultiple: boolean; difficultyMix: { easy: number; medium: number; hard: number }; topic?: string; meta?: { userId?: string; workspaceId?: string; jobId?: string } },
+  o: { count: number; language: string; allowMultiple: boolean; allowTrueFalse?: boolean; difficultyMix: { easy: number; medium: number; hard: number }; topic?: string; meta?: { userId?: string; workspaceId?: string; jobId?: string } },
 ): Promise<{ candidates: Candidate[]; note: string | null; rejected: number }> {
   const { block, ids } = sourceBlock(chunks);
-  const user = `${block}\n\nWrite ${o.count} questions in ${LANG_NAMES[o.language] ?? o.language}. Difficulty mix: easy ${Math.round(o.difficultyMix.easy * 100)}%, medium ${Math.round(o.difficultyMix.medium * 100)}%, hard ${Math.round(o.difficultyMix.hard * 100)}%. ${o.allowMultiple ? "Some questions may have several correct answers." : "Every question has exactly one correct answer."}${o.topic ? ` Focus topic: ${o.topic}.` : ""}`;
+  const user = `${block}\n\nWrite ${o.count} questions in ${LANG_NAMES[o.language] ?? o.language}. Difficulty mix: easy ${Math.round(o.difficultyMix.easy * 100)}%, medium ${Math.round(o.difficultyMix.medium * 100)}%, hard ${Math.round(o.difficultyMix.hard * 100)}%. ${o.allowMultiple ? "Some questions may have several correct answers." : "Every question has exactly one correct answer."} ${o.allowTrueFalse ? "Up to a quarter of the questions may be type true_false with exactly two options meaning True and False (in that order, in the target language)." : "Do not use type true_false."}${o.topic ? ` Focus topic: ${o.topic}.` : ""}`;
   const res = await ai.structured({ task: "quiz_generate", tier: "strong", system: GEN_SYSTEM, user, schema: GenOutput, effort: "medium", meta: o.meta });
   let rejected = 0;
   const candidates: Candidate[] = [];

@@ -360,6 +360,7 @@ export async function buildApp(deps: Deps, opts: { hub?: RoomHub; logger?: boole
     return rooms.submitAnswer(deps, me(req), qid(req), body.questionId, body.optionIds);
   });
   app.post("/api/rooms/:id/invite", { preHandler: auth }, async (req) => rooms.rotateInvite(deps, me(req), qid(req)));
+  app.post("/api/rooms/:id/cohost", { preHandler: auth }, async (req) => rooms.setCoHost(deps, me(req), qid(req), z.object({ userId: uuid.nullable() }).parse(req.body).userId));
   app.delete("/api/rooms/:id/invite", { preHandler: auth }, async (req) => {
     await rooms.revokeInvites(deps, me(req), qid(req));
     return { ok: true };

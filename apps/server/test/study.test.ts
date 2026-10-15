@@ -9,7 +9,7 @@ import { answerAttempt, attemptState, startAttempt } from "../src/quiz/practice"
 import { sm2 } from "../src/study/flashcards";
 import { buildSchedule, dueInstant, localDate } from "../src/study/plans";
 import { compute } from "../src/study/stats";
-import { createRoom, joinRoom, loadSharedState, submitAnswer, hostAction, teamStandings } from "../src/rooms/service";
+import { createRoom, joinRoom, loadSharedState, submitAnswer, hostAction, teamStandings, setCoHost, setPresence, pauseIfHostAway } from "../src/rooms/service";
 import { createTestDeps, makeUser } from "./helpers/deps";
 import { fixture, sourceFixture } from "./helpers/fixtures";
 import { testWorker } from "./helpers/worker";
@@ -265,5 +265,32 @@ describe("group workspace", () => {
     expect((await app.inject({ method: "PUT", url: `/api/workspaces/${workspaceId}/members/${owner.id}`, headers: ho, payload: { role: "viewer" } })).statusCode).toBe(409);
     // outsiders see nothing
     expect((await app.inject({ method: "GET", url: `/api/workspaces/${workspaceId}`, headers: await auth(late) })).statusCode).toBe(404);
+  });
+});
+
+describe("co-host", () => {
+  it("only the host names a co-host; the co-host can run the room, and the room is not paused while either is connected", async () => {
+    const host = await makeUser(deps);
+    const { quizId } = await bookAndQuiz(host, "cohost-1");
+    const { roomId, inviteToken } = await createRoom(deps, host, quizId, { timePerQuestionSec: 60 });
+    const helper = await makeUser(deps);
+    const player = await makeUser(deps);
+    await joinRoom(deps, helper, { inviteToken });
+    await joinRoom(deps, player, { inviteToken });
+    await expect(setCoHost(deps, player, roomId, helper.id)).rejects.toThrow();
+    await expect(setCoHost(deps, host, roomId, (await makeUser(deps)).id)).rejects.toThrow(); // not in the room
+    await setCoHost(deps, host, roomId, helper.id);
+    const shared = await loadSharedState(deps.sql, roomId);
+    expect(shared.participants.find((p) => p.userId === helper.id)).toMatchObject({ isHost: true, isCoHost: true });
+    await hostAction(deps, helper, roomId, "start");
+    await expect(hostAction(deps, player, roomId, "pause")).rejects.toThrow();
+    // host away, co-host connected → keeps running; both away → paused
+    await setPresence(deps.sql, roomId, host.id, false);
+    await setPresence(deps.sql, roomId, helper.id, true);
+    expect(await pauseIfHostAway(deps, roomId)).toBe(false);
+    await setPresence(deps.sql, roomId, helper.id, false);
+    expect(await pauseIfHostAway(deps, roomId)).toBe(true);
+    await setCoHost(deps, host, roomId, null);
+    await expect(hostAction(deps, helper, roomId, "resume")).rejects.toThrow();
   });
 });

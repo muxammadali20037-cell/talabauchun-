@@ -232,7 +232,7 @@ function QuestionCard({ q, n, busy, onEdit, onApprove, onConfirmEvidence, onRemo
   );
 }
 
-type Draft = { text: string; type: "single" | "multiple"; explanation: string; options: { id?: string; text: string; correct: boolean; whyWrong: string }[] };
+type Draft = { text: string; type: "single" | "multiple" | "true_false"; explanation: string; options: { id?: string; text: string; correct: boolean; whyWrong: string }[] };
 
 function QuestionSheet({ quizId, question, onClose, onSaved }: { quizId: string; question: Question | null; onClose: () => void; onSaved: () => void }) {
   const t = useT();
@@ -245,7 +245,7 @@ function QuestionSheet({ quizId, question, onClose, onSaved }: { quizId: string;
       /* ignore */
     }
     return question
-      ? { text: question.text, type: question.type === "multiple" ? "multiple" : "single", explanation: question.explanation ?? "", options: question.options.map((o) => ({ id: o.id, text: o.text, correct: o.correct, whyWrong: o.whyWrong ?? "" })) }
+      ? { text: question.text, type: question.type === "multiple" ? "multiple" : question.type === "true_false" ? "true_false" : "single", explanation: question.explanation ?? "", options: question.options.map((o) => ({ id: o.id, text: o.text, correct: o.correct, whyWrong: o.whyWrong ?? "" })) }
       : { text: "", type: "single", explanation: "", options: [0, 1, 2, 3].map((i) => ({ text: "", correct: i === 0, whyWrong: "" })) };
   })();
   const [d, setD] = useState<Draft>(initial);
@@ -260,7 +260,7 @@ function QuestionSheet({ quizId, question, onClose, onSaved }: { quizId: string;
     }
   }, [d, storageKey]);
   const correctCount = d.options.filter((o) => o.correct).length;
-  const valid = d.text.trim().length >= 3 && d.options.length >= 2 && d.options.every((o) => o.text.trim()) && (d.type === "single" ? correctCount === 1 : correctCount >= 2);
+  const valid = d.text.trim().length >= 3 && d.options.length >= 2 && d.options.every((o) => o.text.trim()) && (d.type === "multiple" ? correctCount >= 2 : correctCount === 1);
   const save = async () => {
     setState("saving");
     setErr(null);
@@ -277,17 +277,17 @@ function QuestionSheet({ quizId, question, onClose, onSaved }: { quizId: string;
       setErr(errorMessage(e, t));
     }
   };
-  const setOpt = (i: number, patch: Partial<Draft["options"][number]>) => setD({ ...d, options: d.options.map((o, j) => (j === i ? { ...o, ...patch } : patch.correct && d.type === "single" ? { ...o, correct: false } : o)) });
+  const setOpt = (i: number, patch: Partial<Draft["options"][number]>) => setD({ ...d, options: d.options.map((o, j) => (j === i ? { ...o, ...patch } : patch.correct && d.type !== "multiple" ? { ...o, correct: false } : o)) });
   return (
     <Sheet open onClose={onClose} title={question ? t("common.edit") : t("quiz.addQuestion")}>
       <div className="stack">
         <Field label={t("quiz.questionText")}>{(id) => <textarea id={id} className="textarea" rows={3} value={d.text} onChange={(e) => setD({ ...d, text: e.target.value })} />}</Field>
-        <Toggle label={t("quiz.multipleCorrect")} checked={d.type === "multiple"} onChange={(v) => setD({ ...d, type: v ? "multiple" : "single", options: v ? d.options : d.options.map((o, i) => ({ ...o, correct: i === d.options.findIndex((x) => x.correct) })) })} />
+        {d.type !== "true_false" && <Toggle label={t("quiz.multipleCorrect")} checked={d.type === "multiple"} onChange={(v) => setD({ ...d, type: v ? "multiple" : "single", options: v ? d.options : d.options.map((o, i) => ({ ...o, correct: i === d.options.findIndex((x) => x.correct) })) })} />}
         {d.options.map((o, i) => (
           <div key={i} className="card flat stack" style={{ padding: 12 }}>
             <div className="row">
               <input
-                type={d.type === "single" ? "radio" : "checkbox"}
+                type={d.type === "multiple" ? "checkbox" : "radio"}
                 name="correct"
                 aria-label={`${t("quiz.markCorrect")} ${String.fromCharCode(65 + i)}`}
                 checked={o.correct}
@@ -304,7 +304,7 @@ function QuestionSheet({ quizId, question, onClose, onSaved }: { quizId: string;
         ))}
         {d.options.length < 6 && <button className="btn btn-ghost btn-sm" onClick={() => setD({ ...d, options: [...d.options, { text: "", correct: false, whyWrong: "" }] })}>+ {t("quiz.addOption")}</button>}
         <Field label={t("quiz.explanation")}>{(id) => <textarea id={id} className="textarea" rows={3} value={d.explanation} onChange={(e) => setD({ ...d, explanation: e.target.value })} />}</Field>
-        {!valid && <p className="error-text">{d.type === "single" ? t("quiz.needOneCorrect") : t("quiz.needTwoCorrect")}</p>}
+        {!valid && <p className="error-text">{d.type === "multiple" ? t("quiz.needTwoCorrect") : t("quiz.needOneCorrect")}</p>}
         {err && <Banner kind="danger">{err}</Banner>}
         <p className="caption">{t("quiz.recheckNote")}</p>
         <div className="row">

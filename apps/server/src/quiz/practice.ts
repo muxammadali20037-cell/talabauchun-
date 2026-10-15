@@ -39,8 +39,9 @@ export async function startAttempt(deps: Deps, user: UserRow, quizId: string, mo
   const ids = v.settings.shuffleQuestions ? shuffle(qs.map((q) => q.id)) : qs.map((q) => q.id);
   const orders: Record<string, string[]> = {};
   for (const id of ids) {
-    const opts = await deps.sql<{ id: string }[]>`select id from options where question_id = ${id} order by position`;
-    orders[id] = v.settings.shuffleOptions ? shuffle(opts.map((o) => o.id)) : opts.map((o) => o.id);
+    const opts = await deps.sql<{ id: string; type: string }[]>`select o.id, q.type from options o join questions q on q.id = o.question_id where o.question_id = ${id} order by o.position`;
+    // True/False keeps its conventional order
+    orders[id] = v.settings.shuffleOptions && opts[0]?.type !== "true_false" ? shuffle(opts.map((o) => o.id)) : opts.map((o) => o.id);
   }
   const [a] = await deps.sql<AttemptRow[]>`
     insert into attempts (quiz_version_id, user_id, mode, question_ids, option_orders, max_score)

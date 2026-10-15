@@ -27,6 +27,8 @@ export const QuizSettings = z.object({
   showExplanation: z.enum(["immediately", "after_question", "after_quiz", "never"]).default("immediately"),
   resultsVisibility: z.enum(["immediately", "after_close", "host_only"]).default("immediately"),
   allowMultipleCorrect: z.boolean().default(false),
+  /** also make True/False questions (from definitions in the source, or by the model) */
+  includeTrueFalse: z.boolean().default(false),
   sourceMode: SourceMode.default("sources_only"),
 });
 export type QuizSettings = z.infer<typeof QuizSettings>;
